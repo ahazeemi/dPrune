@@ -1,0 +1,74 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a script go generate a bundle
+#  One-file builds
+*.spec
+#  Exe binaries
+*.exe
+#  Tree files
+*.bin
+*.dll
+*.so
+*.zip
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Our test results
+test_results/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# virtualenv
+.venv/
+venv/
+env/
+
+# Environments
+.env
+.env.*
+
+# mypy
+.mypy_cache/
+
+# VS Code
+.vscode/
+
+# MacOS
+.DS_Store
+
+# Project planning file
+plan.md 
