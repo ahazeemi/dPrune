@@ -110,6 +110,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`TopKPruner`**: Selects the `k` examples with the highest scores.
 - **`BottomKPruner`**: Selects the `k` examples with the lowest scores.
 - **`StratifiedPruner`**: Divides the data into strata based on score quantiles and samples proportionally from each.
+- **`RandomPruner`**: Randomly selects `k` examples, ignoring scores. Useful for establishing a baseline.
 
 ## Extending dPrune
 

@@ -1,6 +1,6 @@
 import pytest
 from datasets import Dataset
-from dprune.pruners.selection import TopKPruner, BottomKPruner, StratifiedPruner
+from dprune.pruners.selection import TopKPruner, BottomKPruner, StratifiedPruner, RandomPruner
 import numpy as np
 
 
@@ -87,4 +87,20 @@ def test_stratified_pruner(large_scored_dataset):
 
     # Check that we have both low and high scores in the pruned set
     assert np.min(pruned_scores) < np.median(original_scores)
-    assert np.max(pruned_scores) > np.median(original_scores) 
+    assert np.max(pruned_scores) > np.median(original_scores)
+
+
+def test_random_pruner(large_scored_dataset):
+    """Tests the RandomPruner."""
+    k = 0.3 # Keep 30%
+    pruner = RandomPruner(k=k)
+    
+    pruned_dataset = pruner.prune(large_scored_dataset)
+    
+    expected_size = int(len(large_scored_dataset) * k)
+
+    assert len(pruned_dataset) == expected_size
+    # Verify that the selection is not sorted by score
+    original_scores = large_scored_dataset.sort("score")['score']
+    pruned_scores = pruned_dataset.sort("score")['score']
+    assert original_scores[:expected_size] != pruned_scores 

@@ -104,3 +104,31 @@ class StratifiedPruner(Pruner):
         ).index.get_level_values(1) # Get original indices
 
         return scored_dataset.select(pruned_indices)
+
+
+class RandomPruner(Pruner):
+    """
+    Pruner that randomly selects a k percent or k number of examples
+    from a dataset. This pruner ignores the 'score' column and is useful for
+    creating a baseline.
+    """
+
+    def __init__(self, k: float | int):
+        self.k = k
+
+    def prune(self, scored_dataset: Dataset, **kwargs) -> Dataset:
+        if isinstance(self.k, float) and (self.k < 0 or self.k > 1):
+            raise ValueError(f"k must be a float between 0 and 1, but got {self.k}")
+
+        num_examples = len(scored_dataset)
+        
+        if isinstance(self.k, float):
+            k_examples = math.ceil(num_examples * self.k)
+        else:
+            k_examples = self.k
+
+        if k_examples >= num_examples:
+            return scored_dataset
+
+        # Use the dataset's built-in shuffle and select for efficiency
+        return scored_dataset.shuffle(seed=42).select(range(k_examples))
