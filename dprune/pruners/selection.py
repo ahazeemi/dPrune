@@ -1,4 +1,5 @@
 import math
+from typing import Union
 from datasets import Dataset
 from ..base import Pruner
 import pandas as pd
@@ -10,7 +11,7 @@ class TopKPruner(Pruner):
     from a scored dataset.
     """
 
-    def __init__(self, k: float | int):
+    def __init__(self, k: Union[float, int]):
         self.k = k
 
     def prune(self, scored_dataset: Dataset, **kwargs) -> Dataset:
@@ -38,7 +39,7 @@ class BottomKPruner(Pruner):
     from a scored dataset.
     """
 
-    def __init__(self, k: float | int):
+    def __init__(self, k: Union[float, int]):
         self.k = k
 
     def prune(self, scored_dataset: Dataset, **kwargs) -> Dataset:
@@ -67,7 +68,7 @@ class StratifiedPruner(Pruner):
     quantiles and then samples a proportional number of examples from each.
     """
 
-    def __init__(self, k: float | int, num_strata: int = 10):
+    def __init__(self, k: Union[float, int], num_strata: int = 10):
         if not (isinstance(num_strata, int) and num_strata > 0):
             raise ValueError("num_strata must be a positive integer.")
         self.k = k
@@ -113,7 +114,7 @@ class RandomPruner(Pruner):
     creating a baseline.
     """
 
-    def __init__(self, k: float | int):
+    def __init__(self, k: Union[float, int]):
         self.k = k
 
     def prune(self, scored_dataset: Dataset, **kwargs) -> Dataset:
