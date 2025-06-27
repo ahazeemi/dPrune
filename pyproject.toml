@@ -23,6 +23,7 @@ dependencies = [
     "scikit-learn>=1.0.0",
     "tqdm>=4.0.0",
     "pandas>=1.0.0",
+    "accelerate>=0.26.0",
 ]
 
 [project.optional-dependencies]
