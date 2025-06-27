@@ -1,4 +1,4 @@
-# dPrune: Data Pruning for Transformers
+# dPrune: A Framework for Data Pruning
 
 [![CI](https://github.com/ahazeemi/dPrune/actions/workflows/ci.yml/badge.svg)](https://github.com/ahazeemi/dPrune/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/dprune.svg)](https://badge.fury.io/py/dprune)
