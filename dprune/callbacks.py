@@ -1,4 +1,5 @@
 import numpy as np
+from typing import List
 from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
 
 
@@ -45,7 +46,7 @@ class ForgettingCallback(TrainerCallback):
                 self.learning_events[i] = []
             self.learning_events[i].append(1 if pred == true else 0)
 
-    def calculate_forgetting_scores(self) -> list[int]:
+    def calculate_forgetting_scores(self) -> List[int]:
         """
         Calculates the forgetting score for each example based on the
         recorded learning events.
