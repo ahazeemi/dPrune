@@ -1,6 +1,6 @@
 # dPrune: Data Pruning for Transformers
 
-[![CI](https://github.com/your-username/dPrune/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/dPrune/actions/workflows/ci.yml)
+[![CI](https://github.com/ahazeemi/dPrune/actions/workflows/ci.yml/badge.svg)](https://github.com/ahazeemi/dPrune/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/dprune.svg)](https://badge.fury.io/py/dprune)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
