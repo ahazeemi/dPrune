@@ -5,6 +5,7 @@ from tqdm.auto import tqdm
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
 from ..base import Scorer
+from ..callbacks import ForgettingCallback
 
 
 class CrossEntropyScorer(Scorer):
@@ -54,5 +55,42 @@ class CrossEntropyScorer(Scorer):
                     outputs.logits, batch["labels"], reduction="none"
                 )
                 scores.extend(loss.cpu().numpy())
+
+        return dataset.add_column("score", scores)
+
+
+class ForgettingScorer(Scorer):
+    """
+    A Scorer that uses a ForgettingCallback to assign a "forgetting score"
+    to each example. The score is the number of times an example was
+    "forgotten" during training (i.e., transitioned from being classified
+    correctly to incorrectly).
+    """
+
+    def __init__(self, forgetting_callback: ForgettingCallback):
+        """
+        Initializes the ForgettingScorer.
+
+        Args:
+            forgetting_callback (ForgettingCallback): A ForgettingCallback instance
+                that has been used during a Trainer's training run.
+        """
+        if not isinstance(forgetting_callback, ForgettingCallback):
+            raise TypeError("A ForgettingCallback instance is required.")
+        self.callback = forgetting_callback
+
+    def score(self, dataset: Dataset, **kwargs) -> Dataset:
+        """
+        Calculates and adds the forgetting scores to the dataset.
+        The dataset passed here should be the same one used for training.
+        """
+        scores = self.callback.calculate_forgetting_scores()
+
+        if len(scores) != len(dataset):
+            raise ValueError(
+                f"The number of scores from the callback ({len(scores)}) does not match "
+                f"the dataset size ({len(dataset)}). Ensure the same dataset was used "
+                "for training and scoring."
+            )
 
         return dataset.add_column("score", scores)

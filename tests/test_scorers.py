@@ -2,9 +2,11 @@ import pytest
 import torch
 from datasets import Dataset
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
+from unittest.mock import Mock
 
-from dprune.scorers.supervised import CrossEntropyScorer
+from dprune.scorers.supervised import CrossEntropyScorer, ForgettingScorer
 from dprune.scorers.unsupervised import KMeansCentroidDistanceScorer
+from dprune.callbacks import ForgettingCallback
 
 
 @pytest.fixture(scope="module")
@@ -94,4 +96,34 @@ def test_kmeans_centroid_distance_scorer(setup_for_scoring):
     # Check that scores are floats
     assert isinstance(scored_dataset['score'][0], float)
     # Check that scores are non-negative (distances)
-    assert all(s >= 0 for s in scored_dataset['score']) 
+    assert all(s >= 0 for s in scored_dataset['score'])
+
+
+def test_forgetting_scorer():
+    """Tests the ForgettingScorer."""
+    # 1. Mock a ForgettingCallback that has "run"
+    mock_callback = Mock(spec=ForgettingCallback)
+    mock_callback.calculate_forgetting_scores.return_value = [1, 0, 2]
+
+    # 2. Create a dataset that matches the scores
+    dataset = Dataset.from_dict({'text': ['a', 'b', 'c']})
+
+    # 3. Setup and run scorer
+    scorer = ForgettingScorer(mock_callback)
+    scored_dataset = scorer.score(dataset)
+
+    # 4. Assert
+    mock_callback.calculate_forgetting_scores.assert_called_once()
+    assert 'score' in scored_dataset.column_names
+    assert scored_dataset['score'] == [1, 0, 2]
+
+
+def test_forgetting_scorer_mismatch_len():
+    """Tests that an error is raised if dataset and scores have different lengths."""
+    mock_callback = Mock(spec=ForgettingCallback)
+    mock_callback.calculate_forgetting_scores.return_value = [1, 0]  # Only 2 scores
+    dataset = Dataset.from_dict({'text': ['a', 'b', 'c']})  # 3 examples
+
+    scorer = ForgettingScorer(mock_callback)
+    with pytest.raises(ValueError):
+        scorer.score(dataset) 

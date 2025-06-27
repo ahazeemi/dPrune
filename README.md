@@ -105,6 +105,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 
 - **`CrossEntropyScorer`**: (Supervised) Scores examples based on the cross-entropy loss from a given model.
 - **`KMeansCentroidDistanceScorer`**: (Unsupervised) Embeds the data, performs k-means clustering, and scores each example by its distance to its cluster centroid.
+- **`ForgettingScorer`**: (Supervised, Advanced) Works with a `ForgettingCallback` to score examples based on how many times they are "forgotten" during training.
 
 ### Pruners
 
@@ -112,6 +113,10 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`BottomKPruner`**: Selects the `k` examples with the lowest scores.
 - **`StratifiedPruner`**: Divides the data into strata based on score quantiles and samples proportionally from each.
 - **`RandomPruner`**: Randomly selects `k` examples, ignoring scores. Useful for establishing a baseline.
+
+### Callbacks
+
+- **`ForgettingCallback`**: A `TrainerCallback` that records learning events during training to be used with the `ForgettingScorer`.
 
 ## Extending dPrune
 
@@ -147,6 +152,37 @@ class ThresholdPruner(Pruner):
     def prune(self, scored_dataset: Dataset, **kwargs) -> Dataset:
         indices_to_keep = [i for i, score in enumerate(scored_dataset['score']) if score > self.threshold]
         return scored_dataset.select(indices_to_keep)
+```
+
+## Advanced Usage: Forgetting Score
+
+Some pruning strategies require observing the model's behavior *during* training. `dPrune` supports this via Hugging Face `TrainerCallback`s. Here is how you would use the `ForgettingScorer`:
+
+```python
+from dprune.callbacks import ForgettingCallback
+from dprune.scorers.supervised import ForgettingScorer
+
+# 1. Initialize the callback before training
+forgetting_callback = ForgettingCallback()
+
+# 2. Add the callback to your Trainer
+trainer = Trainer(
+    model=model,
+    train_dataset=raw_dataset,
+    callbacks=[forgetting_callback], # Add the callback here
+)
+
+# 3. Train the model. The callback will record events automatically.
+trainer.train()
+
+# 4. Create the scorer from the populated callback
+scorer = ForgettingScorer(forgetting_callback)
+
+# 5. Use the scorer in a pipeline as usual
+pipeline = PruningPipeline(scorer=scorer, pruner=TopKPruner(k=0.8)) # Keep 80%
+pruned_dataset = pipeline.run(raw_dataset)
+
+print(f"Pruned with forgetting scores, final size: {len(pruned_dataset)}")
 ```
 
 ## Running Tests
