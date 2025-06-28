@@ -4,7 +4,7 @@
 [![PyPI version](https://badge.fury.io/py/dprune.svg)](https://badge.fury.io/py/dprune)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-`dPrune` is a lightweight, extensible Python library designed to make data pruning simple and accessible for NLP tasks, with first-class support for Hugging Face `datasets` and `transformers`.
+`dPrune` is a lightweight, extensible Python library designed to make data pruning simple and accessible for NLP and speech tasks, with first-class support for Hugging Face `datasets` and `transformers`.
 
 Data pruning is the process of selecting a smaller, more informative subset of a large training dataset. This can lead to faster training, lower computational costs, and sometimes even better model performance by removing noisy or redundant examples. `dPrune` provides a modular framework to experiment with various pruning strategies.
 
@@ -12,10 +12,10 @@ Data pruning is the process of selecting a smaller, more informative subset of a
 
 ## Key Features
 
-- **Modular Design**: Separates the scoring logic from the pruning criteria, allowing you to mix and match strategies.
-- **Extensible**: Easily create your own custom scoring functions and pruning methods.
 - **Hugging Face Integration**: Works seamlessly with `datasets` and `transformers`.
-- **Supervised & Unsupervised Methods**: Includes a variety of common pruning techniques.
+- **Modular Design**: Separates the scoring logic from the pruning criteria.
+- **Extensible**: Easily create your own custom scoring functions and pruning methods.
+- **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
   - **Supervised**: Score data based on model outputs (e.g., cross-entropy loss).
   - **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings).
 - **Rich Pruning Strategies**: Supports top/bottom-k selection and stratified sampling to preserve data distribution.
