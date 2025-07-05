@@ -1,4 +1,4 @@
-# dPrune: A Framework for Data Pruning
+# 🌿 dPrune: A Framework for Data Pruning
 
 [![CI](https://github.com/ahazeemi/dPrune/actions/workflows/ci.yml/badge.svg)](https://github.com/ahazeemi/dPrune/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/dprune.svg)](https://badge.fury.io/py/dprune)
@@ -10,7 +10,7 @@ Data pruning is the process of selecting a smaller, more informative subset of a
 
 ---
 
-## Key Features
+## ⭐ Key Features
 
 - **Hugging Face Integration**: Works seamlessly with `datasets` and `transformers`.
 - **Modular Design**: Separates the scoring logic from the pruning criteria.
@@ -20,7 +20,7 @@ Data pruning is the process of selecting a smaller, more informative subset of a
   - **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings).
 - **Rich Pruning Strategies**: Supports top/bottom-k selection and stratified sampling to preserve data distribution.
 
-## Installation
+## 📦 Installation
 
 You can install `dPrune` via pip:
 
@@ -43,42 +43,41 @@ pip install "dprune[test]"
 uv pip install "dprune[test]"
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
-Here's a simple example of how to prune a dataset. In this case, we'll keep the 50% of examples that have the highest cross-entropy loss according to a fine-tuned model. These are often considered the "hardest" or most informative examples.
+Here's a simple example of how to prune a dataset using unsupervised KMeans clustering. This approach keeps the most representative examples (closest to cluster centroids) without requiring labels or fine-tuning.
 
 ```python
-import torch
 from datasets import Dataset
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
+from transformers import AutoTokenizer, AutoModel
 
 # Assuming dprune is installed
 from dprune.pipeline import PruningPipeline
-from dprune.scorers.supervised import CrossEntropyScorer
-from dprune.pruners.selection import TopKPruner
+from dprune.scorers.unsupervised import KMeansCentroidDistanceScorer
+from dprune.pruners.selection import BottomKPruner
 
-# 1. Load your data, model, and tokenizer
-data = {'text': ['A great movie!', 'Waste of time.', 'Amazing.', 'So predictable.'], 'label': [1, 0, 1, 0]}
+# 1. Load your data and model
+data = {'text': ['A great movie!', 'Waste of time.', 'Amazing.', 'So predictable.']}
 raw_dataset = Dataset.from_dict(data)
 model_name = 'distilbert-base-uncased'
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+model = AutoModelForSequenceClassification.from_pretrained(model_name, 
+num_labels=2)
 
-# 2. Fine-tune your model (required for supervised scoring)
-# (For brevity, we'll assume the model is already fine-tuned)
-# trainer = Trainer(...)
-# trainer.train()
-# fine_tuned_model = trainer.model
+# 2. Define the Scorer and Pruner
+scorer = KMeansCentroidDistanceScorer(
+    model=model, 
+    tokenizer=tokenizer, 
+    text_column='text', 
+    num_clusters=2
+)
+pruner = BottomKPruner(k=0.5)  # Keep the 50% closest to centroids
 
-# 3. Define the Scorer and Pruner
-scorer = CrossEntropyScorer(model=model, tokenizer=tokenizer, text_column='text', label_column='label')
-pruner = TopKPruner(k=0.5)  # Keep the top 50%
-
-# 4. Create and run the pipeline
+# 3. Create and run the pipeline
 pipeline = PruningPipeline(scorer=scorer, pruner=pruner)
 pruned_dataset = pipeline.run(raw_dataset)
 
-# 5. Get the result
+# 4. Get the result
 print(f"Original dataset size: {len(raw_dataset)}")
 print(f"Pruned dataset size: {len(pruned_dataset)}")
 # Expected output:
@@ -86,7 +85,7 @@ print(f"Pruned dataset size: {len(pruned_dataset)}")
 # Pruned dataset size: 2
 ```
 
-## Core Concepts
+## 💡 Core Concepts
 
 `dPrune` is built around three core components:
 
@@ -99,7 +98,7 @@ A `Pruner` takes a scored `Dataset` and selects a subset of it based on the `sco
 #### `PruningPipeline`
 The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pruner` together into a single, easy-to-use workflow.
 
-## Available Components
+## 🛠️ Available Components
 
 ### Scorers
 
@@ -118,7 +117,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 
 - **`ForgettingCallback`**: A `TrainerCallback` that records learning events during training to be used with the `ForgettingScorer`.
 
-## Extending dPrune
+## 🎨 Extending dPrune
 
 Creating your own custom components is straightforward.
 
@@ -154,7 +153,7 @@ class ThresholdPruner(Pruner):
         return scored_dataset.select(indices_to_keep)
 ```
 
-## Advanced Usage: Forgetting Score
+## 🎓 Advanced Usage: Forgetting Score
 
 Some pruning strategies require observing the model's behavior *during* training. `dPrune` supports this via Hugging Face `TrainerCallback`s. Here is how you would use the `ForgettingScorer`:
 
@@ -185,7 +184,7 @@ pruned_dataset = pipeline.run(raw_dataset)
 print(f"Pruned with forgetting scores, final size: {len(pruned_dataset)}")
 ```
 
-## Running Tests
+## 🧪 Running Tests
 
 To run the full test suite, clone the repository and run `pytest` from the root directory:
 
@@ -200,10 +199,10 @@ uv pip install -e ".[test]"
 pytest
 ```
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! If you have a feature request, bug report, or want to add a new scorer or pruner, please open an issue or submit a pull request on GitHub.
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
