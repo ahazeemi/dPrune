@@ -16,9 +16,9 @@ Data pruning is the process of selecting a smaller, more informative subset of a
 - **Modular Design**: Separates the scoring logic from the pruning criteria.
 - **Extensible**: Easily create your own custom scoring functions and pruning methods.
 - **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
-  - **Supervised**: Score data based on model outputs (e.g., cross-entropy loss).
+  - **Supervised**: Score data based on model outputs (e.g., cross-entropy loss, forgetting scores).
   - **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings).
-- **Rich Pruning Strategies**: Supports top/bottom-k selection and stratified sampling to preserve data distribution.
+- **Multiple Pruning Strategies**: Supports top/bottom-k pruning, stratified sampling, and random pruning.
 
 ## 📦 Installation
 
@@ -164,15 +164,16 @@ Some pruning strategies require observing the model's behavior _during_ training
 from dprune.callbacks import ForgettingCallback
 from dprune.scorers.supervised import ForgettingScorer
 
-# 1. Initialize the callback before training
+# 1. Initialize the callback and trainer
 forgetting_callback = ForgettingCallback()
-
-# 2. Add the callback to your Trainer
 trainer = Trainer(
     model=model,
     train_dataset=raw_dataset,
-    callbacks=[forgetting_callback], # Add the callback here
+    callbacks=[forgetting_callback],
 )
+
+# 2. Assign the trainer to the callback
+forgetting_callback.trainer = trainer
 
 # 3. Train the model. The callback will record events automatically.
 trainer.train()
