@@ -17,6 +17,8 @@ def mock_trainer():
 
 def test_forgetting_callback_on_epoch_end(mock_trainer):
     callback = ForgettingCallback()
+    # Set the trainer on the callback (as done in real usage)
+    callback.trainer = mock_trainer
     
     # --- Epoch 1: two correct, two incorrect ---
     mock_trainer.predict.return_value = Mock(
@@ -24,7 +26,7 @@ def test_forgetting_callback_on_epoch_end(mock_trainer):
         label_ids=np.array([0, 1, 0, 1]) # labels: 0, 1, 0, 1
     )
     # Expected learning events: 1, 1, 1, 0 (correct, correct, correct, incorrect)
-    callback.on_epoch_end(args=None, state=None, control=None, trainer=mock_trainer)
+    callback.on_epoch_end(args=None, state=None, control=None)
     
     assert callback.learning_events[0] == [1]
     assert callback.learning_events[1] == [1]
@@ -37,7 +39,7 @@ def test_forgetting_callback_on_epoch_end(mock_trainer):
         label_ids=np.array([0, 1, 0, 1]) # labels: 0, 1, 0, 1
     )
     # Expected learning events for example 0: [1, 0] (forgotten)
-    callback.on_epoch_end(args=None, state=None, control=None, trainer=mock_trainer)
+    callback.on_epoch_end(args=None, state=None, control=None)
 
     assert callback.learning_events[0] == [1, 0]
     assert callback.learning_events[1] == [1, 1]
