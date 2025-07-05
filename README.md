@@ -233,7 +233,6 @@ If you use `dPrune` in your research, please cite it as follows:
   title = {dPrune: A Framework for Data Pruning},
   year = {2025},
   url = {https://github.com/ahazeemi/dPrune},
-  version = {0.0.1},
   publisher = {GitHub},
 }
 ```
