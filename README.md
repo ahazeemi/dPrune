@@ -240,4 +240,4 @@ If you use `dPrune` in your research, please cite it as follows:
 
 Alternatively, you can cite it in text as:
 
-> Azeemi, A. H., Qazi, I. A., & Raza, A. A. (2025). dPrune: A Framework for Data Pruning. GitHub. https://github.com/ahazeemi/dPrune
+> Abdul Hameed Azeemi, Ihsan Ayyub Qazi, and Agha Ali Raza. (2025). dPrune: A Framework for Data Pruning. GitHub. https://github.com/ahazeemi/dPrune
