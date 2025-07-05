@@ -12,7 +12,7 @@ Data pruning is the process of selecting a smaller, more informative subset of a
 
 ## ⭐ Key Features
 
-- **Hugging Face Integration**: Works seamlessly with `datasets` and `transformers`.
+- **Hugging Face Integration**: Works seamlessly with huggingface `datasets` and `transformers`.
 - **Modular Design**: Separates the scoring logic from the pruning criteria.
 - **Extensible**: Easily create your own custom scoring functions and pruning methods.
 - **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
