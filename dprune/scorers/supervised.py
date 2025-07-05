@@ -75,8 +75,6 @@ class ForgettingScorer(Scorer):
             forgetting_callback (ForgettingCallback): A ForgettingCallback instance
                 that has been used during a Trainer's training run.
         """
-        if not isinstance(forgetting_callback, ForgettingCallback):
-            raise TypeError("A ForgettingCallback instance is required.")
         self.callback = forgetting_callback
 
     def score(self, dataset: Dataset, **kwargs) -> Dataset:

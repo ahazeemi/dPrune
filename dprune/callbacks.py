@@ -1,6 +1,6 @@
 import numpy as np
-from typing import List
-from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
+from typing import List, Optional
+from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl, Trainer
 
 
 class ForgettingCallback(TrainerCallback):
@@ -14,27 +14,26 @@ class ForgettingCallback(TrainerCallback):
     Usage:
         callback = ForgettingCallback()
         trainer = Trainer(..., callbacks=[callback])
+        callback.trainer = trainer
         trainer.train()
         scores = callback.calculate_forgetting_scores()
     """
 
     def __init__(self):
-        self.learning_events = {}  # Using a dict: {example_index: [events]}
+        self.learning_events = {}
+        self.trainer: Optional[Trainer] = None
 
     def on_epoch_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
         """
         At the end of each epoch, get predictions for the entire training set
         and record whether each example was classified correctly.
         """
-        trainer = kwargs.get("trainer")
-        if trainer is None or trainer.train_dataset is None:
+        if self.trainer is None or self.trainer.train_dataset is None:
             return
 
         # This can be computationally expensive on large datasets.
-        # It's a known trade-off for this kind of analysis.
-        predictions = trainer.predict(trainer.train_dataset)
-
-        # Ensure predictions and labels are available
+        predictions = self.trainer.predict(self.trainer.train_dataset)
+  
         if predictions.predictions is None or predictions.label_ids is None:
             return
 
@@ -55,12 +54,11 @@ class ForgettingCallback(TrainerCallback):
             return []
 
         max_index = max(self.learning_events.keys())
-        # Ensure we have a score for every example up to the max index
         forgetting_scores = [0] * (max_index + 1)
 
         for i, events in self.learning_events.items():
             if len(events) < 2:
-                continue  # Need at least two epochs to have a transition
+                continue
 
             # A transition from correct (1) to incorrect (0) is a forget event
             transitions = zip(events, events[1:])
