@@ -29,6 +29,7 @@ pip install dprune
 ```
 
 Alternatively, you can use [`uv`](https://github.com/astral-sh/uv), which is a fast, drop-in replacement for `pip`:
+
 ```bash
 uv pip install dprune
 ```
@@ -61,14 +62,13 @@ data = {'text': ['A great movie!', 'Waste of time.', 'Amazing.', 'So predictable
 raw_dataset = Dataset.from_dict(data)
 model_name = 'distilbert-base-uncased'
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSequenceClassification.from_pretrained(model_name, 
-num_labels=2)
+model = AutoModelForSequenceClassification.from_pretrained(model_name,   num_labels=2)
 
 # 2. Define the Scorer and Pruner
 scorer = KMeansCentroidDistanceScorer(
-    model=model, 
-    tokenizer=tokenizer, 
-    text_column='text', 
+    model=model,
+    tokenizer=tokenizer,
+    text_column='text',
     num_clusters=2
 )
 pruner = BottomKPruner(k=0.5)  # Keep the 50% closest to centroids
@@ -90,12 +90,15 @@ print(f"Pruned dataset size: {len(pruned_dataset)}")
 `dPrune` is built around three core components:
 
 #### `Scorer`
+
 A `Scorer` takes a `Dataset` and adds a new `score` column to it. The score is a numerical value that represents some property of the example (e.g., how hard it is for the model to classify).
 
 #### `Pruner`
+
 A `Pruner` takes a scored `Dataset` and selects a subset of it based on the `score` column.
 
 #### `PruningPipeline`
+
 The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pruner` together into a single, easy-to-use workflow.
 
 ## 🛠️ Available Components
@@ -155,7 +158,7 @@ class ThresholdPruner(Pruner):
 
 ## 🎓 Advanced Usage: Forgetting Score
 
-Some pruning strategies require observing the model's behavior *during* training. `dPrune` supports this via Hugging Face `TrainerCallback`s. Here is how you would use the `ForgettingScorer`:
+Some pruning strategies require observing the model's behavior _during_ training. `dPrune` supports this via Hugging Face `TrainerCallback`s. Here is how you would use the `ForgettingScorer`:
 
 ```python
 from dprune.callbacks import ForgettingCallback
