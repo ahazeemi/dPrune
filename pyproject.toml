@@ -6,15 +6,27 @@ build-backend = "setuptools.build_meta"
 name = "dprune"
 version = "0.0.1"
 authors = [
-  { name="USER", email="user@example.com" },
+  { name="Abdul Hameed Azeemi", email="abdulhameed.azeemi99@gmail.com" },
 ]
-description = "A library for data pruning with Hugging Face datasets and transformers."
+description = "A lightweight, extensible Python library for data pruning with Hugging Face datasets and transformers"
 readme = "README.md"
 requires-python = ">=3.8"
+license = "MIT"
+keywords = ["machine-learning", "data-pruning", "hugging-face", "transformers", "datasets", "nlp", "deep-learning"]
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
 ]
 dependencies = [
     "torch>=2.0.0",
@@ -26,7 +38,26 @@ dependencies = [
     "accelerate>=0.26.0",
 ]
 
+[project.urls]
+"Homepage" = "https://github.com/ahazeemi/dPrune"
+"Repository" = "https://github.com/ahazeemi/dPrune"
+"Issues" = "https://github.com/ahazeemi/dPrune/issues"
+"Documentation" = "https://github.com/ahazeemi/dPrune#readme"
+
 [project.optional-dependencies]
 test = [
     "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
 ]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dprune*"]
+exclude = ["tests*"]
