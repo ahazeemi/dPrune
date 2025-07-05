@@ -11,7 +11,7 @@ authors = [
 description = "A lightweight, extensible Python library for data pruning with Hugging Face datasets and transformers"
 readme = "README.md"
 requires-python = ">=3.8"
-license = "MIT"
+license = {file = "LICENSE"}
 keywords = ["machine-learning", "data-pruning", "hugging-face", "transformers", "datasets", "nlp", "deep-learning"]
 classifiers = [
     "Development Status :: 3 - Alpha",
