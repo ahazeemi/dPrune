@@ -199,6 +199,25 @@ pruned_dataset = pipeline.run(raw_dataset)
 print(f"Pruned with forgetting scores, final size: {len(pruned_dataset)}")
 ```
 
+## 📝 Citation
+
+If you use `dPrune` in your research, please cite it as follows:
+
+```bibtex
+@software{dprune2025,
+  author = {Azeemi, Abdul Hameed and Qazi, Ihsan Ayyub and Raza, Agha Ali},
+  title = {dPrune: A Framework for Data Pruning},
+  year = {2025},
+  url = {https://github.com/ahazeemi/dPrune},
+  version = {0.0.1},
+  publisher = {GitHub},
+}
+```
+
+Alternatively, you can cite it in text as:
+
+> Azeemi, A. H., Qazi, I. A., & Raza, A. A. (2025). dPrune: A Framework for Data Pruning. GitHub. https://github.com/ahazeemi/dPrune
+
 ## 🧪 Running Tests
 
 To run the full test suite, clone the repository and run `pytest` from the root directory:
