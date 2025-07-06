@@ -83,7 +83,8 @@ class KMeansCentroidDistanceScorer(Scorer):
 class PerplexityScorer(Scorer):
     """
     A Scorer that calculates perplexity scores using a KenLM language model.
-    Lower perplexity indicates more fluent/natural text.
+    Lower perplexity indicates easier and more prototypical instances. 
+    Higher perplexity indicates harder (and potentially more informative) instances.
     """
 
     def __init__(
