@@ -52,10 +52,7 @@ Here's a simple example of how to prune a dataset using unsupervised KMeans clus
 from datasets import Dataset
 from transformers import AutoTokenizer, AutoModel
 
-# Assuming dprune is installed
-from dprune.pipeline import PruningPipeline
-from dprune.scorers.unsupervised import KMeansCentroidDistanceScorer
-from dprune.pruners.selection import BottomKPruner
+from dprune import PruningPipeline, KMeansCentroidDistanceScorer, BottomKPruner
 
 # 1. Load your data and model
 data = {'text': ['A great movie!', 'Waste of time.', 'Amazing.', 'So predictable.']}
@@ -140,7 +137,7 @@ Creating your own custom components is straightforward.
 Simply inherit from the `Scorer` base class and implement the `score` method.
 
 ```python
-from dprune.base import Scorer
+from dprune import Scorer
 from datasets import Dataset
 import random
 
@@ -155,7 +152,7 @@ class RandomScorer(Scorer):
 Inherit from the `Pruner` base class and implement the `prune` method.
 
 ```python
-from dprune.base import Pruner
+from dprune import Pruner
 from datasets import Dataset
 
 class ThresholdPruner(Pruner):
@@ -172,8 +169,7 @@ class ThresholdPruner(Pruner):
 Some pruning strategies require observing the model's behavior _during_ training. `dPrune` supports this via Hugging Face `TrainerCallback`s. Here is how you would use the `ForgettingScorer`:
 
 ```python
-from dprune.callbacks import ForgettingCallback
-from dprune.scorers.supervised import ForgettingScorer
+from dprune import ForgettingCallback, ForgettingScorer
 
 # 1. Initialize the callback and trainer
 forgetting_callback = ForgettingCallback()
