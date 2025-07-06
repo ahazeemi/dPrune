@@ -56,6 +56,17 @@ dev = [
     "flake8>=5.0.0",
     "mypy>=1.0.0",
 ]
+perplexity = [
+    "kenlm>=0.0.0",
+]
+all = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
+    "kenlm>=0.0.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

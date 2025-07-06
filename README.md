@@ -6,7 +6,7 @@
 
 `dPrune` is a lightweight, extensible Python library designed to make data pruning simple and accessible for NLP and speech tasks, with first-class support for Hugging Face `datasets` and `transformers`.
 
-Data pruning is the process of selecting a smaller, more informative subset of a large training dataset. This can lead to faster training, lower computational costs, and even better model performance by removing noisy or redundant examples. `dPrune` provides a modular framework to experiment with various pruning strategies.
+Data pruning is the process of selecting a smaller, more informative, and a higher quality subset of a large training dataset. This can lead to faster training, lower computational costs, and even better model performance by removing noisy or redundant examples. `dPrune` provides a modular framework to experiment with various pruning strategies.
 
 ---
 
