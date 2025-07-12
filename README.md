@@ -54,43 +54,25 @@ from transformers import AutoTokenizer, AutoModel
 
 from dprune import PruningPipeline, KMeansCentroidDistanceScorer, BottomKPruner
 
-# 1. Load your data and model
 data = {'text': ['A great movie!', 'Waste of time.', 'Amazing.', 'So predictable.']}
 raw_dataset = Dataset.from_dict(data)
 model_name = 'distilbert-base-uncased'
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSequenceClassification.from_pretrained(model_name,   num_labels=2)
 
-# 2. Define the Scorer and Pruner
 scorer = KMeansCentroidDistanceScorer(
     model=model,
     tokenizer=tokenizer,
     text_column='text',
     num_clusters=2
 )
-pruner = BottomKPruner(k=0.5)  # Keep the 50% closest to centroids
+pruner = BottomKPruner(k=0.5)
 
-# 3. Create and run the pipeline
 pipeline = PruningPipeline(scorer=scorer, pruner=pruner)
 pruned_dataset = pipeline.run(raw_dataset)
 
-# 4. Get the result
 print(f"Original dataset size: {len(raw_dataset)}")
 print(f"Pruned dataset size: {len(pruned_dataset)}")
-# Expected output:
-# Original dataset size: 4
-# Pruned dataset size: 2
-
-# 5. Train on the pruned dataset (optional)
-from transformers import Trainer, TrainingArguments
-
-def tokenize_function(examples):
-    return tokenizer(examples['text'], padding='max_length', truncation=True)
-
-tokenized_dataset = pruned_dataset.map(tokenize_function, batched=True)
-training_args = TrainingArguments(output_dir='./results', num_train_epochs=3)
-trainer = Trainer(model=model, args=training_args, train_dataset=tokenized_dataset)
-trainer.train()
 ```
 
 ## 💡 Core Concepts
