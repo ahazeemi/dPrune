@@ -157,7 +157,7 @@ Shows how to use perplexity scoring for data pruning in text summarization.
 
 ## 🎓 Advanced Usage: Forgetting Score
 
-Some pruning strategies require observing the model's behavior _during_ training. `dPrune` supports this via Hugging Face `TrainerCallback`s. Here is how you would use the `ForgettingScorer`:
+Some pruning strategies require observing the model's behavior _during_ training. `dPrune` supports this via Hugging Face `TrainerCallback`. Here is how you would use the `ForgettingScorer`:
 
 ```python
 from dprune import ForgettingCallback, ForgettingScorer
@@ -191,7 +191,7 @@ print(f"Pruned with forgetting scores, final size: {len(pruned_dataset)}")
 To run the full test suite, clone the repository and run `pytest` from the root directory:
 
 ```bash
-git clone https://github.com/your-username/dPrune.git
+git clone https://github.com/ahazeemi/dPrune.git
 cd dPrune
 # Install in editable mode with test dependencies
 pip install -e ".[test]"
