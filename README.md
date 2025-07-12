@@ -37,11 +37,7 @@ uv pip install dprune
 To install the library with all testing dependencies, run:
 
 ```bash
-# with pip
 pip install "dprune[test]"
-
-# with uv
-uv pip install "dprune[test]"
 ```
 
 ## 🚀 Quick Start
