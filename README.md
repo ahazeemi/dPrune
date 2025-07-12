@@ -17,7 +17,7 @@ Data pruning is the process of selecting a smaller, more informative, and a high
 - **Extensible**: Easily create your own custom scoring functions and pruning methods.
 - **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
   - **Supervised**: Score data based on model outputs (e.g., cross-entropy loss, forgetting scores).
-  - **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings).
+  - **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings, perplexity scores).
 - **Multiple Pruning Strategies**: Supports top/bottom-k pruning, stratified sampling, and random pruning.
 
 ## 📦 Installation
@@ -86,9 +86,10 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 
 ### Scorers
 
-- **`CrossEntropyScorer`**: (Supervised) Scores examples based on the cross-entropy loss from a given model.
 - **`KMeansCentroidDistanceScorer`**: (Unsupervised) Embeds the data, performs k-means clustering, and scores each example by its distance to its cluster centroid.
-- **`ForgettingScorer`**: (Supervised, Advanced) Works with a `ForgettingCallback` to score examples based on how many times they are "forgotten" during training.
+- **`PerplexityScorer`**: (Unsupervised) Calculates perplexity score for each example using the KenLM n-gram language model.
+- **`CrossEntropyScorer`**: (Supervised) Scores examples based on the cross-entropy loss from a given model.
+- **`ForgettingScorer`**: (Supervised) Works with a `ForgettingCallback` to score examples based on how many times they are "forgotten" during training.
 
 ### Pruners
 
