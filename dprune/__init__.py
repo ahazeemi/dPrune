@@ -5,7 +5,6 @@ from dprune.scorers import *
 from dprune.pruners import *
 from dprune.pipeline import PruningPipeline
 from dprune.callbacks import *
-from dprune.utils import *
 
 __version__ = "0.1.0"
 __all__ = [
