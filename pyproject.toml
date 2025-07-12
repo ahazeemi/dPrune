@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dprune"
-version = "0.0.3"
+version = "0.0.1"
 authors = [
   { name="Abdul Hameed Azeemi", email="abdulhameed.azeemi99@gmail.com" },
 ]
