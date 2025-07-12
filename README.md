@@ -164,6 +164,26 @@ class ThresholdPruner(Pruner):
         return scored_dataset.select(indices_to_keep)
 ```
 
+## 📓 Example Notebooks
+
+### 1. Supervised Pruning with Forgetting Score
+`examples/supervised_pruning_with_forgetting_score.ipynb`
+
+Shows how to use forgetting scores to identify and remove examples that are repeatedly forgotten during training.
+
+### 2. Unsupervised Pruning with K-Means
+`examples/unsupervised_pruning_with_kmeans.ipynb` 
+
+Demonstrates clustering-based pruning using K-means to remove outlier examples.
+
+### 3. Unsupervised Pruning with Perplexity
+`examples/unsupervised_pruning_with_perplexity.ipynb`
+
+Complete example showing how to use perplexity scoring for text summarization:
+- Score CNN/DailyMail dataset with perplexity from KenLM model
+- Train models on original vs pruned data
+- Compare ROUGE-L performance
+
 ## 🎓 Advanced Usage: Forgetting Score
 
 Some pruning strategies require observing the model's behavior _during_ training. `dPrune` supports this via Hugging Face `TrainerCallback`s. Here is how you would use the `ForgettingScorer`:
