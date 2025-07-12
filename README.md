@@ -46,8 +46,6 @@ Here's a simple example of how to prune a dataset using unsupervised KMeans clus
 
 ```python
 from datasets import Dataset
-from transformers import AutoTokenizer, AutoModel
-
 from dprune import PruningPipeline, KMeansCentroidDistanceScorer, BottomKPruner
 
 data = {'text': ['A great movie!', 'Waste of time.', 'Amazing.', 'So predictable.']}
