@@ -227,11 +227,10 @@ If you use `dPrune` in your research, please cite it as follows:
   author = {Azeemi, Abdul Hameed and Qazi, Ihsan Ayyub and Raza, Agha Ali},
   title = {dPrune: A Framework for Data Pruning},
   year = {2025},
-  url = {https://github.com/ahazeemi/dPrune},
-  publisher = {GitHub},
+  url = {https://github.com/ahazeemi/dPrune}
 }
 ```
 
 Alternatively, you can cite it in text as:
 
-> Abdul Hameed Azeemi, Ihsan Ayyub Qazi, and Agha Ali Raza. (2025). dPrune: A Framework for Data Pruning. GitHub. https://github.com/ahazeemi/dPrune
+> Abdul Hameed Azeemi, Ihsan Ayyub Qazi, and Agha Ali Raza. (2025). dPrune: A Framework for Data Pruning. https://github.com/ahazeemi/dPrune
