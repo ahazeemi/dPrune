@@ -28,7 +28,7 @@ You can install `dPrune` via pip:
 pip install dprune
 ```
 
-Alternatively, you can use [`uv`](https://github.com/astral-sh/uv), which is a fast, drop-in replacement for `pip`:
+Alternatively, you can use [`uv`](https://github.com/astral-sh/uv):
 
 ```bash
 uv pip install dprune
