@@ -52,9 +52,6 @@ from dprune import PruningPipeline, KMeansCentroidDistanceScorer, BottomKPruner
 
 data = {'text': ['A great movie!', 'Waste of time.', 'Amazing.', 'So predictable.']}
 raw_dataset = Dataset.from_dict(data)
-model_name = 'distilbert-base-uncased'
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSequenceClassification.from_pretrained(model_name,   num_labels=2)
 
 scorer = KMeansCentroidDistanceScorer(
     model=model,
