@@ -1,7 +1,7 @@
 # 🌿 dPrune: A Framework for Data Pruning
 
 [![CI](https://github.com/ahazeemi/dPrune/actions/workflows/ci.yml/badge.svg)](https://github.com/ahazeemi/dPrune/actions/workflows/ci.yml)
-[![PyPI version](https://badge.fury.io/py/dprune.svg)](https://badge.fury.io/py/dprune)
+[![PyPI version](https://badge.fury.io/py/dprune.svg?icon=si%3Apython)](https://badge.fury.io/py/dprune)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 `dPrune` is a lightweight, extensible Python library designed to make data selection and pruning simple and accessible for NLP and speech tasks, with first-class support for Hugging Face `datasets` and `transformers`.
