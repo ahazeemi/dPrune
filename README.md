@@ -11,14 +11,13 @@ Data pruning is the process of selecting a smaller, more informative, and a high
 ---
 
 ## ⭐ Key Features
-
-- **Hugging Face Integration**: Works seamlessly with huggingface `datasets` and `transformers`.
-- **Modular Design**: Separates the scoring logic from the pruning criteria.
-- **Extensible**: Easily create your own custom scoring functions and pruning methods.
-- **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
-  - **Supervised**: Score data based on model outputs (e.g., cross-entropy loss, forgetting scores).
-  - **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings, perplexity scores).
-- **Multiple Pruning Strategies**: Supports top/bottom-k pruning, stratified sampling, and random pruning.
+* 🤗 **Hugging Face Integration**: Works seamlessly with huggingface datasets and transformers.
+* 🧩 **Modular Design**: Separates the scoring logic from the pruning criteria.
+* 🔌 **Extensible**: Easily create your own custom scoring functions and pruning methods.
+* 🧠 **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
+* 🎯 **Supervised**: Score data based on model outputs (e.g., cross-entropy loss, forgetting scores).
+* 🔍 **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings, perplexity scores).
+* ✂️ **Multiple Pruning Strategies**: Supports top/bottom-k pruning, stratified sampling, and random pruning.
 
 ## 📦 Installation
 
