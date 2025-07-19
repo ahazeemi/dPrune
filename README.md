@@ -11,7 +11,7 @@ Data pruning is the process of selecting a smaller, more informative, and a high
 ---
 
 ## ⭐ Key Features
-* 🤗 **Hugging Face Integration**: Works seamlessly with huggingface datasets and transformers.
+* 🤗 **Hugging Face Integration**: Works seamlessly with Hugging Face datasets and transformers.
 * 🧩 **Modular Design**: Separates the scoring logic from the pruning criteria.
 * 🔌 **Extensible**: Easily create your own custom scoring functions and pruning methods.
 * 🧠 **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
@@ -41,7 +41,7 @@ pip install "dprune[test]"
 
 ## 🚀 Quick Start
 
-Here's a simple example of how to prune a dataset using unsupervised KMeans clustering. This approach keeps the most representative examples (closest to cluster centroids) without requiring labels or fine-tuning.
+Here's a simple example of how to prune a dataset using unsupervised K-Means clustering. This approach keeps the most representative examples (closest to cluster centroids) without requiring labels or fine-tuning.
 
 ```python
 from datasets import Dataset
