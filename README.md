@@ -147,16 +147,22 @@ class ThresholdPruner(Pruner):
 ## 📓 Example Notebooks
 
 ### 1. Supervised Pruning with Forgetting Score
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1nVqcudRUbz_LTy5P1zAmf1Qfl9jR2bVm?usp=sharing)
+
 `examples/supervised_pruning_with_forgetting_score.ipynb`
 
 Shows how to use forgetting scores to prune dataset.
 
 ### 2. Unsupervised Pruning with K-Means
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/19Ry58KZ-szBfPX3AdSr-X5VjNwBYR0of)
+
 `examples/unsupervised_pruning_with_kmeans.ipynb` 
 
 Demonstrates clustering-based pruning using K-means to remove outlier examples.
 
 ### 3. Unsupervised Pruning with Perplexity
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1uGpg5ZTKbHVOUnQZeDWLA9JYyF00gVVP?usp=sharing)
+
 `examples/unsupervised_pruning_with_perplexity.ipynb`
 
 Shows how to use perplexity scoring for data pruning in text summarization.
