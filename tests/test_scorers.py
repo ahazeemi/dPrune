@@ -1,11 +1,21 @@
 import pytest
 import torch
 from datasets import Dataset
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
+from requests import exceptions as req_exceptions
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    Trainer,
+    TrainingArguments,
+)
 from unittest.mock import Mock, patch
 from typing import Callable
 
-from dprune.scorers.supervised import CrossEntropyScorer, ForgettingScorer
+from dprune.scorers.supervised import (
+    CrossEntropyScorer,
+    ForgettingScorer,
+    GraNdScorer,
+)
 from dprune.scorers.unsupervised import KMeansCentroidDistanceScorer, PerplexityScorer
 from dprune.callbacks import ForgettingCallback
 
@@ -28,8 +38,13 @@ def setup_for_scoring():
 
     # 2. Load tokenizer and model
     model_name = 'distilbert-base-uncased'
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_name, num_labels=2
+        )
+    except (OSError, req_exceptions.RequestException) as err:
+        pytest.skip(f"Unable to download pretrained resources: {err}")
 
     def tokenize_function(examples):
         return tokenizer(examples['text'], padding='max_length', truncation=True)
@@ -98,6 +113,26 @@ def test_kmeans_centroid_distance_scorer(setup_for_scoring):
     assert isinstance(scored_dataset['score'][0], float)
     # Check that scores are non-negative (distances)
     assert all(s >= 0 for s in scored_dataset['score'])
+
+
+def test_grand_scorer(setup_for_scoring):
+    """Tests the GraNdScorer."""
+
+    scorer = GraNdScorer(
+        model=setup_for_scoring["model"],
+        tokenizer=setup_for_scoring["tokenizer"],
+        text_column="text",
+        label_column="label",
+        batch_size=2,
+        max_length=64,
+    )
+
+    scored_dataset = scorer.score(setup_for_scoring["dataset"])
+
+    assert "score" in scored_dataset.column_names
+    assert len(scored_dataset["score"]) == len(setup_for_scoring["dataset"])
+    assert all(isinstance(score, float) for score in scored_dataset["score"])
+    assert all(score >= 0 for score in scored_dataset["score"])
 
 
 def test_forgetting_scorer():
