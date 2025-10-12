@@ -135,32 +135,39 @@ def test_grand_scorer(setup_for_scoring):
     assert all(score >= 0 for score in scored_dataset["score"])
 
 
-def test_grand_scorer_handles_frozen_parameters(setup_for_scoring):
-    """GraNdScorer should return zero scores when all parameters are frozen."""
+@pytest.fixture
+def frozen_model(setup_for_scoring):
+    """Temporarily freeze all model parameters for a test and restore afterwards."""
 
     model = setup_for_scoring["model"]
+    params = list(model.parameters())
+    original_requires_grad = [param.requires_grad for param in params]
 
-    original_requires_grad = [param.requires_grad for param in model.parameters()]
-    try:
-        for param in model.parameters():
-            param.requires_grad_(False)
+    for param in params:
+        param.requires_grad_(False)
 
-        scorer = GraNdScorer(
-            model=model,
-            tokenizer=setup_for_scoring["tokenizer"],
-            text_column="text",
-            label_column="label",
-            batch_size=2,
-            max_length=64,
-        )
+    yield model
 
-        scored_dataset = scorer.score(setup_for_scoring["dataset"])
+    for param, requires_grad in zip(params, original_requires_grad):
+        param.requires_grad_(requires_grad)
 
-        assert "score" in scored_dataset.column_names
-        assert scored_dataset["score"] == [0.0] * len(setup_for_scoring["dataset"])
-    finally:
-        for param, requires_grad in zip(model.parameters(), original_requires_grad):
-            param.requires_grad_(requires_grad)
+
+def test_grand_scorer_handles_frozen_parameters(setup_for_scoring, frozen_model):
+    """GraNdScorer should return zero scores when all parameters are frozen."""
+
+    scorer = GraNdScorer(
+        model=frozen_model,
+        tokenizer=setup_for_scoring["tokenizer"],
+        text_column="text",
+        label_column="label",
+        batch_size=2,
+        max_length=64,
+    )
+
+    scored_dataset = scorer.score(setup_for_scoring["dataset"])
+
+    assert "score" in scored_dataset.column_names
+    assert scored_dataset["score"] == [0.0] * len(setup_for_scoring["dataset"])
 
 
 def test_forgetting_scorer():
