@@ -10,9 +10,11 @@ def _get_device(model: PreTrainedModel) -> torch.device:
         first_param = next(model.parameters())
     except StopIteration:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if first_param.is_cuda:
-        return torch.device("cuda")
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    device = first_param.device
+    if device.type == "meta":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    return device
 
 from ..base import Scorer
 from ..callbacks import ForgettingCallback
@@ -117,30 +119,45 @@ class GraNdScorer(Scorer):
             dataset, batch_size=self.batch_size, collate_fn=collate_fn
         )
 
+        parameters = [
+            parameter
+            for parameter in self.model.parameters()
+            if parameter.requires_grad
+        ]
+
+        if not parameters:
+            return dataset.add_column("score", [0.0] * len(dataset))
+
         scores = []
+        self.model.zero_grad(set_to_none=True)
         for batch in tqdm(data_loader, desc="Scoring with GraNd"):
             batch = {k: v.to(device) for k, v in batch.items()}
             labels = batch.pop("labels")
 
-            outputs = self.model(**batch)
-            logits = outputs.logits
-            loss_per_example = torch.nn.functional.cross_entropy(
-                logits, labels, reduction="none"
-            )
-
-            for loss in loss_per_example:
-                grads = torch.autograd.grad(
-                    loss,
-                    self.model.parameters(),
-                    retain_graph=True,
-                    allow_unused=True,
+            with torch.enable_grad():
+                outputs = self.model(**batch)
+                logits = outputs.logits
+                loss_per_example = torch.nn.functional.cross_entropy(
+                    logits, labels, reduction="none"
                 )
-                grad_norm_sq = 0.0
-                for g in grads:
-                    if g is None:
-                        continue
-                    grad_norm_sq += g.pow(2).sum().item()
-                scores.append(grad_norm_sq**0.5)
+
+                num_examples = loss_per_example.size(0)
+                for idx, loss in enumerate(loss_per_example):
+                    grads = torch.autograd.grad(
+                        loss,
+                        parameters,
+                        retain_graph=idx < num_examples - 1,
+                        allow_unused=True,
+                        create_graph=False,
+                    )
+
+                    grad_norm_sq = 0.0
+                    for grad in grads:
+                        if grad is None:
+                            continue
+                        grad_norm_sq += grad.pow(2).sum().item()
+
+                    scores.append(grad_norm_sq**0.5)
 
             # Free the computational graph for the next batch.
             self.model.zero_grad(set_to_none=True)
