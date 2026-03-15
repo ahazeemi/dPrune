@@ -1,0 +1,246 @@
+"""
+Data preparation for auto data pruning experiments.
+Adapted from Karpathy's autoresearch pattern:
+- Downloads and prepares training data
+- Trains a BPE tokenizer
+- Provides dataloader and evaluation utilities
+
+This file is FIXED — the AI agent does NOT edit this file.
+"""
+
+import os
+import struct
+import numpy as np
+import torch
+from torch.utils.data import Dataset as TorchDataset, DataLoader
+
+# ---------------------------------------------------------------------------
+# Constants — mirror autoresearch's design: small, single-GPU friendly
+# ---------------------------------------------------------------------------
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+VOCAB_SIZE = 8192
+MAX_SEQ_LEN = 512
+SEED = 42
+
+# Dataset config — default to TinyStories for broad GPU compatibility.
+# Switch to karpathy/climbmix-400b-shuffle for high-end GPUs.
+HF_DATASET = "roneneldan/TinyStories"
+HF_DATASET_TEXT_COLUMN = "text"
+HF_DATASET_SPLIT_TRAIN = "train"
+HF_DATASET_SPLIT_VAL = "validation"
+
+# Tokenized shard files
+TRAIN_SHARD = os.path.join(DATA_DIR, "train.bin")
+VAL_SHARD = os.path.join(DATA_DIR, "val.bin")
+TOKENIZER_PATH = os.path.join(DATA_DIR, "tokenizer.json")
+
+
+# ---------------------------------------------------------------------------
+# Tokenizer training
+# ---------------------------------------------------------------------------
+def train_tokenizer(texts, vocab_size=VOCAB_SIZE, save_path=TOKENIZER_PATH):
+    """Train a BPE tokenizer on the given texts."""
+    from tokenizers import Tokenizer, models, trainers, pre_tokenizers
+
+    tokenizer = Tokenizer(models.BPE())
+    tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+
+    trainer = trainers.BpeTrainer(
+        vocab_size=vocab_size,
+        special_tokens=["<|endoftext|>"],
+        show_progress=True,
+    )
+    tokenizer.train_from_iterator(texts, trainer=trainer)
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    tokenizer.save(save_path)
+    print(f"Tokenizer saved to {save_path} (vocab_size={tokenizer.get_vocab_size()})")
+    return tokenizer
+
+
+def load_tokenizer(path=TOKENIZER_PATH):
+    """Load a pre-trained tokenizer."""
+    from tokenizers import Tokenizer
+    return Tokenizer.from_file(path)
+
+
+# ---------------------------------------------------------------------------
+# Data download & tokenization
+# ---------------------------------------------------------------------------
+def download_and_tokenize():
+    """
+    Download the HuggingFace dataset, train a tokenizer, tokenize all splits,
+    and write them as flat binary shards of uint16 token IDs.
+    """
+    from datasets import load_dataset
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    if os.path.exists(TRAIN_SHARD) and os.path.exists(VAL_SHARD):
+        print("Data shards already exist, skipping download.")
+        return
+
+    print(f"Downloading {HF_DATASET}...")
+    ds = load_dataset(HF_DATASET)
+
+    # Train tokenizer on a sample of training data
+    print("Training tokenizer...")
+    train_texts = ds[HF_DATASET_SPLIT_TRAIN][HF_DATASET_TEXT_COLUMN]
+    sample_size = min(100_000, len(train_texts))
+    sample_texts = train_texts[:sample_size]
+    tokenizer = train_tokenizer(sample_texts)
+
+    # Tokenize and write shards
+    for split_name, shard_path in [
+        (HF_DATASET_SPLIT_TRAIN, TRAIN_SHARD),
+        (HF_DATASET_SPLIT_VAL, VAL_SHARD),
+    ]:
+        print(f"Tokenizing {split_name}...")
+        split = ds[split_name]
+        texts = split[HF_DATASET_TEXT_COLUMN]
+
+        all_tokens = []
+        eot_id = tokenizer.token_to_id("<|endoftext|>")
+        for text in texts:
+            encoded = tokenizer.encode(text)
+            all_tokens.extend(encoded.ids)
+            all_tokens.append(eot_id)
+
+        # Write as uint16
+        arr = np.array(all_tokens, dtype=np.uint16)
+        arr.tofile(shard_path)
+        print(f"  Wrote {len(arr):,} tokens to {shard_path}")
+
+    print("Data preparation complete.")
+
+
+# ---------------------------------------------------------------------------
+# HuggingFace dataset loader (for dPrune scoring — returns raw text dataset)
+# ---------------------------------------------------------------------------
+def load_hf_dataset(split="train", max_examples=None):
+    """
+    Load the raw HuggingFace dataset (text, not tokenized).
+    Used by prune.py for scoring with dPrune.
+    """
+    from datasets import load_dataset
+
+    ds = load_dataset(HF_DATASET, split=split)
+    if max_examples is not None:
+        ds = ds.select(range(min(max_examples, len(ds))))
+    return ds
+
+
+# ---------------------------------------------------------------------------
+# Token-level dataloader (for training — reads from binary shards)
+# ---------------------------------------------------------------------------
+class TokenDataset(TorchDataset):
+    """Memory-mapped dataset of tokenized sequences from a binary shard."""
+
+    def __init__(self, shard_path, seq_len=MAX_SEQ_LEN):
+        self.data = np.memmap(shard_path, dtype=np.uint16, mode="r")
+        self.seq_len = seq_len
+        # Number of non-overlapping sequences
+        self.n_sequences = len(self.data) // (seq_len + 1)
+
+    def __len__(self):
+        return self.n_sequences
+
+    def __getitem__(self, idx):
+        start = idx * (self.seq_len + 1)
+        chunk = self.data[start : start + self.seq_len + 1].astype(np.int64)
+        x = torch.from_numpy(chunk[:-1])
+        y = torch.from_numpy(chunk[1:])
+        return x, y
+
+
+class PrunedTokenDataset(TorchDataset):
+    """
+    Dataset that reads from a pruned subset of texts.
+    Takes a list of tokenized sequences directly (after dPrune filtering).
+    """
+
+    def __init__(self, token_ids_list, seq_len=MAX_SEQ_LEN):
+        """
+        Args:
+            token_ids_list: flat list/array of token IDs (pruned data, already tokenized)
+            seq_len: sequence length for training
+        """
+        if isinstance(token_ids_list, list):
+            self.data = np.array(token_ids_list, dtype=np.int64)
+        else:
+            self.data = np.asarray(token_ids_list, dtype=np.int64)
+        self.seq_len = seq_len
+        self.n_sequences = len(self.data) // (seq_len + 1)
+
+    def __len__(self):
+        return self.n_sequences
+
+    def __getitem__(self, idx):
+        start = idx * (self.seq_len + 1)
+        chunk = self.data[start : start + self.seq_len + 1]
+        x = torch.from_numpy(chunk[:-1].copy())
+        y = torch.from_numpy(chunk[1:].copy())
+        return x, y
+
+
+def make_dataloader(dataset, batch_size, shuffle=True):
+    """Create a DataLoader from a TokenDataset or PrunedTokenDataset."""
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=True,
+        pin_memory=True,
+        num_workers=2,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Evaluation — val_bpb (bits per byte), autoresearch's canonical metric
+# ---------------------------------------------------------------------------
+@torch.no_grad()
+def evaluate_bpb(model, val_loader, device, vocab_size=VOCAB_SIZE):
+    """
+    Evaluate validation bits-per-byte (val_bpb).
+    Lower is better. Vocab-size-independent so pruning strategies are fairly compared.
+
+    bpb = cross_entropy_loss * (log2(e) / bytes_per_token)
+    """
+    model.eval()
+    total_loss = 0.0
+    total_tokens = 0
+
+    for x, y in val_loader:
+        x, y = x.to(device), y.to(device)
+        logits = model(x)
+        loss = torch.nn.functional.cross_entropy(
+            logits.view(-1, vocab_size), y.view(-1), reduction="sum"
+        )
+        total_loss += loss.item()
+        total_tokens += y.numel()
+
+    avg_loss = total_loss / total_tokens  # nats per token
+
+    # Convert nats → bits, then normalize by bytes-per-token.
+    # For BPE with vocab_size ~8K on English text, ~3.5 chars/token ≈ 3.5 bytes/token.
+    # We estimate bytes_per_token from the tokenizer if available; else use 3.5.
+    bytes_per_token = 3.5  # reasonable default
+    bpb = avg_loss / np.log(2) / bytes_per_token
+
+    model.train()
+    return bpb
+
+
+# ---------------------------------------------------------------------------
+# Main: run once to prepare data
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    download_and_tokenize()
+    print("\nVerification:")
+    tokenizer = load_tokenizer()
+    print(f"  Tokenizer vocab size: {tokenizer.get_vocab_size()}")
+    train_ds = TokenDataset(TRAIN_SHARD)
+    val_ds = TokenDataset(VAL_SHARD)
+    print(f"  Train sequences: {len(train_ds):,}")
+    print(f"  Val sequences:   {len(val_ds):,}")
+    print("Done. Ready for training.")
