@@ -1,12 +1,5 @@
 """
 Training script for auto data pruning experiments.
-Adapted from Karpathy's autoresearch pattern:
-- Minimal GPT model
-- Fixed 5-minute wall-clock training budget
-- Reports val_bpb as the single metric
-
-This file is FIXED by default. In dual-mutable mode, the agent can edit
-both this file and prune.py.
 """
 
 import os
@@ -14,13 +7,10 @@ import sys
 import time
 import math
 import json
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
 
-# Add repo root for dprune imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from prepare import (
@@ -31,7 +21,6 @@ from prepare import (
     TokenDataset,
     make_dataloader,
     evaluate_bpb,
-    TRAIN_SHARD,
     VAL_SHARD,
     VOCAB_SIZE,
     MAX_SEQ_LEN,
@@ -39,21 +28,17 @@ from prepare import (
 )
 from prune import SCORER_TYPE, prune_dataset
 
-# ---------------------------------------------------------------------------
-# Training hyperparameters
-# ---------------------------------------------------------------------------
-TRAIN_TIME_BUDGET = 240       # seconds (4 min training, ~1 min for pruning + eval)
+TRAIN_TIME_BUDGET = 240
 DEVICE_BATCH_SIZE = 16
-TOTAL_BATCH_SIZE = 64         # gradient accumulation
+TOTAL_BATCH_SIZE = 64
 LEARNING_RATE = 3e-4
 WEIGHT_DECAY = 0.1
 WARMUP_STEPS = 100
-EVAL_INTERVAL = 50            # evaluate every N steps
+EVAL_INTERVAL = 50
 
-# Model architecture
-DEPTH = 6                     # number of transformer layers
-D_MODEL = 384                 # embedding dimension
-N_HEADS = 6                   # attention heads
+DEPTH = 6
+D_MODEL = 384
+N_HEADS = 6
 DROPOUT = 0.1
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -62,9 +47,6 @@ PRUNED_TRAIN_SHARD = os.path.join(DATA_DIR, "pruned_train.bin")
 PRUNING_MODEL_NAME = "distilbert-base-uncased"
 
 
-# ---------------------------------------------------------------------------
-# Minimal GPT Model
-# ---------------------------------------------------------------------------
 class RMSNorm(nn.Module):
     def __init__(self, dim, eps=1e-6):
         super().__init__()
@@ -95,7 +77,6 @@ class CausalSelfAttention(nn.Module):
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        # Scaled dot-product attention with causal mask
         out = F.scaled_dot_product_attention(
             q, k, v,
             is_causal=True,
@@ -145,7 +126,6 @@ class GPT(nn.Module):
         self.ln_f = RMSNorm(d_model)
         self.head = nn.Linear(d_model, vocab_size, bias=False)
 
-        # Weight tying
         self.head.weight = self.tok_emb.weight
 
         self.max_seq_len = max_seq_len
@@ -180,19 +160,14 @@ def build_pruning_resources():
     return model, tokenizer
 
 
-# ---------------------------------------------------------------------------
-# Training loop
-# ---------------------------------------------------------------------------
 def train():
     print("=" * 60)
     print("AUTO DATA PRUNING EXPERIMENT")
     print("=" * 60)
 
-    # Step 1: Prepare data (one-time)
     download_and_tokenize()
     tokenizer = load_tokenizer()
 
-    # Step 2: Load and prune training data
     print("\n--- Data Pruning Phase ---")
     prune_start = time.time()
     full_train_ds = load_hf_dataset(split="train")
@@ -206,7 +181,6 @@ def train():
         save_results(float("inf"), 0, 0, 0)
         return
 
-    # Step 3: Tokenize the pruned dataset into a streamed shard
     print("\n--- Tokenizing pruned data ---")
     n_pruned_tokens = write_tokenized_shard(
         tokenizer,
@@ -215,7 +189,6 @@ def train():
     )
     print(f"Pruned data: {n_pruned_tokens:,} tokens")
 
-    # Step 4: Create datasets and dataloaders
     train_dataset = TokenDataset(PRUNED_TRAIN_SHARD, seq_len=MAX_SEQ_LEN)
     val_dataset = TokenDataset(VAL_SHARD, seq_len=MAX_SEQ_LEN)
 
@@ -232,7 +205,6 @@ def train():
     print(f"Val sequences:   {len(val_dataset):,}")
     print(f"Grad accum steps: {grad_accum_steps}")
 
-    # Step 5: Build model
     print("\n--- Building model ---")
     model = GPT(
         vocab_size=VOCAB_SIZE,
@@ -246,7 +218,6 @@ def train():
     n_params = sum(p.numel() for p in model.parameters())
     print(f"Model parameters: {n_params:,}")
 
-    # Step 6: Optimizer with warmup + cosine decay
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=LEARNING_RATE,
@@ -254,7 +225,6 @@ def train():
         betas=(0.9, 0.95),
     )
 
-    # Step 7: Training loop with fixed time budget
     print(f"\n--- Training (budget: {TRAIN_TIME_BUDGET}s) ---")
     model.train()
     train_start = time.time()
@@ -266,14 +236,12 @@ def train():
     while True:
         epoch += 1
         for x, y in train_loader:
-            # Check time budget
             elapsed = time.time() - train_start
             if elapsed >= TRAIN_TIME_BUDGET:
                 break
 
             x, y = x.to(DEVICE), y.to(DEVICE)
 
-            # Learning rate schedule: warmup + cosine decay
             if step < WARMUP_STEPS:
                 lr = LEARNING_RATE * (step + 1) / WARMUP_STEPS
             else:
@@ -282,7 +250,6 @@ def train():
             for param_group in optimizer.param_groups:
                 param_group["lr"] = lr
 
-            # Forward pass
             logits = model(x)
             loss = F.cross_entropy(logits.view(-1, VOCAB_SIZE), y.view(-1))
             loss = loss / grad_accum_steps
@@ -295,7 +262,6 @@ def train():
                 optimizer.step()
                 optimizer.zero_grad()
 
-            # Evaluation
             if step > 0 and step % EVAL_INTERVAL == 0:
                 val_bpb = evaluate_bpb(model, val_loader, DEVICE, VOCAB_SIZE)
                 best_val_bpb = min(best_val_bpb, val_bpb)
@@ -312,11 +278,9 @@ def train():
 
             step += 1
 
-        # Check time budget after epoch
         if time.time() - train_start >= TRAIN_TIME_BUDGET:
             break
 
-    # Final evaluation
     print("\n--- Final Evaluation ---")
     final_val_bpb = evaluate_bpb(model, val_loader, DEVICE, VOCAB_SIZE)
     best_val_bpb = min(best_val_bpb, final_val_bpb)

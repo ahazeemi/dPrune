@@ -5,27 +5,19 @@
 #   ./run.sh              Run a single experiment (prune + train + eval)
 #   ./run.sh --prepare    Only prepare data (download + tokenize)
 #   ./run.sh --loop N     Run N experiments with keep-or-revert logic
-#
-# The agent edits prune.py, then runs this script to see val_bpb.
 
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 log() { echo -e "${GREEN}[autoresearch]${NC} $*"; }
 warn() { echo -e "${YELLOW}[autoresearch]${NC} $*"; }
-err() { echo -e "${RED}[autoresearch]${NC} $*" >&2; }
 
 get_val_bpb() {
-    # Extract the last val_bpb from results.json
     python3 -c "
 import json
 with open('results.json') as f:
@@ -34,9 +26,6 @@ print(results[-1]['val_bpb'])
 " 2>/dev/null || echo "inf"
 }
 
-# ---------------------------------------------------------------------------
-# Commands
-# ---------------------------------------------------------------------------
 prepare() {
     log "Preparing data..."
     python3 prepare.py
@@ -62,7 +51,6 @@ run_loop() {
 
     log "Running $n_experiments experiments with keep-or-revert..."
 
-    # Ensure we have a clean git state
     if ! git diff --quiet prune.py 2>/dev/null; then
         warn "prune.py has uncommitted changes. Committing as baseline..."
         git add prune.py
@@ -76,7 +64,6 @@ run_loop() {
         local bpb
         bpb=$(get_val_bpb)
 
-        # Compare with best
         local is_better
         is_better=$(python3 -c "print('yes' if float('$bpb') < float('$best_bpb') else 'no')")
 
@@ -96,9 +83,6 @@ run_loop() {
     log "Loop complete. Best val_bpb = $best_bpb"
 }
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 case "${1:-}" in
     --prepare)
         prepare

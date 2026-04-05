@@ -1,22 +1,11 @@
 """
 Data pruning configuration for auto data pruning experiments.
-
-*** THIS IS THE MUTABLE FILE — the AI agent edits THIS file. ***
-
-The agent experiments with different scorers, pruners, ratios, and
-compositions to find the data subset that minimizes val_bpb.
-
-The contract:
-  - prune_dataset(full_dataset) -> pruned HuggingFace Dataset
-  - Must complete within PRUNE_TIME_BUDGET seconds
-  - The returned dataset must have a 'text' column
 """
 
 import sys
 import os
 import time
 
-# Add the repo root so we can import dprune
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from datasets import Dataset
@@ -29,35 +18,15 @@ from dprune.pruners.selection import (
     RandomPruner,
 )
 
-# ---------------------------------------------------------------------------
-# Time budget for pruning (seconds). The rest of the 5-min budget is training.
-# ---------------------------------------------------------------------------
 PRUNE_TIME_BUDGET = 60
 
-# ---------------------------------------------------------------------------
-# Pruning strategy — AGENT: modify everything below this line
-# ---------------------------------------------------------------------------
-
-# Baseline: random pruning at 100% (no-op, keeps all data).
-# This establishes the baseline val_bpb. The agent should then try
-# different strategies to beat it.
 SCORER_TYPE = "random"  # Options: "random", "perplexity", "kmeans"
 PRUNER_TYPE = "random"  # Options: "topk", "bottomk", "stratified", "random"
 PRUNE_RATIO = 1.0       # Float 0.0-1.0: fraction of data to KEEP
 
 
 def prune_dataset(full_dataset: Dataset, model=None, tokenizer=None) -> Dataset:
-    """
-    Prune the dataset using the configured strategy.
-
-    Args:
-        full_dataset: HuggingFace Dataset with at least a 'text' column.
-        model: Optional pre-trained model (for supervised scorers).
-        tokenizer: Optional tokenizer (for supervised/embedding scorers).
-
-    Returns:
-        Pruned HuggingFace Dataset with 'text' column.
-    """
+    """Prune a text dataset using the configured scorer and pruner."""
     start_time = time.time()
     text_column = "text"
     original_size = len(full_dataset)
@@ -68,14 +37,11 @@ def prune_dataset(full_dataset: Dataset, model=None, tokenizer=None) -> Dataset:
             f"but found {full_dataset.column_names}"
         )
 
-    # --- No-op shortcut ---
     if PRUNE_RATIO >= 1.0 and SCORER_TYPE == "random":
         print(f"[prune] No-op: keeping all {original_size:,} examples")
         return full_dataset
 
-    # --- Build scorer ---
     if SCORER_TYPE == "random":
-        # RandomPruner doesn't need a scorer; use a dummy
         scorer = None
     elif SCORER_TYPE == "perplexity":
         from dprune.utils import download_kenlm_model
@@ -101,7 +67,6 @@ def prune_dataset(full_dataset: Dataset, model=None, tokenizer=None) -> Dataset:
             "Supported scorers are: random, perplexity, kmeans."
         )
 
-    # --- Build pruner ---
     if PRUNER_TYPE == "topk":
         pruner = TopKPruner(k=PRUNE_RATIO)
     elif PRUNER_TYPE == "bottomk":
@@ -113,17 +78,14 @@ def prune_dataset(full_dataset: Dataset, model=None, tokenizer=None) -> Dataset:
     else:
         raise ValueError(f"Unknown pruner type: {PRUNER_TYPE}")
 
-    # --- Execute pipeline ---
     if scorer is not None:
         pipeline = PruningPipeline(scorer=scorer, pruner=pruner)
         pruned = pipeline.run(full_dataset)
     else:
-        # For random pruning, score with dummy scores then prune
         dummy_scores = [0.0] * len(full_dataset)
         scored = full_dataset.add_column("score", dummy_scores)
         pruned = pruner.prune(scored)
 
-    # Remove the score column if present (training doesn't need it)
     if "score" in pruned.column_names:
         pruned = pruned.remove_columns(["score"])
 
@@ -140,9 +102,6 @@ def prune_dataset(full_dataset: Dataset, model=None, tokenizer=None) -> Dataset:
     return pruned
 
 
-# ---------------------------------------------------------------------------
-# Self-test
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     from prepare import load_hf_dataset
 
