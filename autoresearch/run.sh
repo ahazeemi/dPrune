@@ -87,7 +87,7 @@ run_loop() {
             git commit -m "improvement: val_bpb=$bpb (experiment $i)"
         else
             warn "No improvement ($bpb >= $best_bpb). Reverting prune.py."
-            git checkout prune.py
+            git restore prune.py
         fi
 
         echo ""

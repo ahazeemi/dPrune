@@ -29,8 +29,8 @@ Agent reads program.md
 
 ```bash
 # 1. Install dependencies
-pip install -e ..              # install dPrune from repo root
-pip install tokenizers torch   # core deps
+pip install -e ..                            # install dPrune and repo dependencies from repo root
+pip install tokenizers torch transformers    # extra runtime deps for this workflow
 
 # 2. Prepare data (one-time)
 python prepare.py
@@ -58,14 +58,17 @@ python prepare.py
 - PyTorch 2.0+ (with CUDA for GPU training)
 - dPrune (this repo)
 - `tokenizers` (for BPE tokenizer)
+- `transformers` (for KMeans embedding scorer)
 - Optional: `kenlm` (for perplexity scoring)
 
 ## The Search Space
 
 The agent explores combinations of:
 
-- **Scorers**: Perplexity, KMeans distance, CrossEntropy, Forgetting, custom
+- **Scorers**: Random, Perplexity, KMeans distance
 - **Pruners**: TopK, BottomK, Stratified, Random
 - **Ratios**: 0.1 to 1.0
 - **Hyperparams**: num_clusters, num_strata, model choice
 - **Compositions**: Multi-stage pruning, ensemble scoring
+
+`CrossEntropy` and `Forgetting` are intentionally not part of this default TinyStories workflow because the dataset does not provide labels and the training loop does not record forgetting events.

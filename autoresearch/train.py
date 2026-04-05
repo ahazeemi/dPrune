@@ -27,8 +27,8 @@ from prepare import (
     download_and_tokenize,
     load_tokenizer,
     load_hf_dataset,
+    write_tokenized_shard,
     TokenDataset,
-    PrunedTokenDataset,
     make_dataloader,
     evaluate_bpb,
     TRAIN_SHARD,
@@ -37,7 +37,7 @@ from prepare import (
     MAX_SEQ_LEN,
     DATA_DIR,
 )
-from prune import prune_dataset
+from prune import SCORER_TYPE, prune_dataset
 
 # ---------------------------------------------------------------------------
 # Training hyperparameters
@@ -58,6 +58,8 @@ DROPOUT = 0.1
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 RESULTS_FILE = os.path.join(os.path.dirname(__file__), "results.json")
+PRUNED_TRAIN_SHARD = os.path.join(DATA_DIR, "pruned_train.bin")
+PRUNING_MODEL_NAME = "distilbert-base-uncased"
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +167,19 @@ class GPT(nn.Module):
         return self.head(x)
 
 
+def build_pruning_resources():
+    """Load Hugging Face resources only when the chosen scorer requires them."""
+    if SCORER_TYPE != "kmeans":
+        return None, None
+
+    from transformers import AutoModel, AutoTokenizer
+
+    print(f"Loading pruning scorer resources: {PRUNING_MODEL_NAME}")
+    tokenizer = AutoTokenizer.from_pretrained(PRUNING_MODEL_NAME)
+    model = AutoModel.from_pretrained(PRUNING_MODEL_NAME)
+    return model, tokenizer
+
+
 # ---------------------------------------------------------------------------
 # Training loop
 # ---------------------------------------------------------------------------
@@ -181,22 +196,27 @@ def train():
     print("\n--- Data Pruning Phase ---")
     prune_start = time.time()
     full_train_ds = load_hf_dataset(split="train")
-    pruned_ds = prune_dataset(full_train_ds)
+    prune_model, prune_tokenizer = build_pruning_resources()
+    pruned_ds = prune_dataset(full_train_ds, model=prune_model, tokenizer=prune_tokenizer)
     prune_elapsed = time.time() - prune_start
     print(f"Pruning took {prune_elapsed:.1f}s")
 
-    # Step 3: Tokenize the pruned dataset
+    if len(pruned_ds) == 0:
+        print("ERROR: Pruning produced an empty dataset.")
+        save_results(float("inf"), 0, 0, 0)
+        return
+
+    # Step 3: Tokenize the pruned dataset into a streamed shard
     print("\n--- Tokenizing pruned data ---")
-    eot_id = tokenizer.token_to_id("<|endoftext|>")
-    all_tokens = []
-    for example in pruned_ds:
-        encoded = tokenizer.encode(example["text"])
-        all_tokens.extend(encoded.ids)
-        all_tokens.append(eot_id)
-    print(f"Pruned data: {len(all_tokens):,} tokens")
+    n_pruned_tokens = write_tokenized_shard(
+        tokenizer,
+        (example["text"] for example in pruned_ds),
+        PRUNED_TRAIN_SHARD,
+    )
+    print(f"Pruned data: {n_pruned_tokens:,} tokens")
 
     # Step 4: Create datasets and dataloaders
-    train_dataset = PrunedTokenDataset(all_tokens, seq_len=MAX_SEQ_LEN)
+    train_dataset = TokenDataset(PRUNED_TRAIN_SHARD, seq_len=MAX_SEQ_LEN)
     val_dataset = TokenDataset(VAL_SHARD, seq_len=MAX_SEQ_LEN)
 
     if len(train_dataset) == 0:

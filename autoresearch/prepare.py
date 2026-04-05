@@ -33,6 +33,7 @@ HF_DATASET_SPLIT_VAL = "validation"
 TRAIN_SHARD = os.path.join(DATA_DIR, "train.bin")
 VAL_SHARD = os.path.join(DATA_DIR, "val.bin")
 TOKENIZER_PATH = os.path.join(DATA_DIR, "tokenizer.json")
+TOKENIZATION_BATCH_SIZE = 1024
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +65,48 @@ def load_tokenizer(path=TOKENIZER_PATH):
     return Tokenizer.from_file(path)
 
 
+def _batched(iterable, batch_size):
+    """Yield lists of up to batch_size items from an iterable."""
+    batch = []
+    for item in iterable:
+        batch.append(item)
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
+def iter_dataset_texts(dataset, text_column=HF_DATASET_TEXT_COLUMN):
+    """Yield texts from a Hugging Face dataset without materializing the full column."""
+    for example in dataset:
+        yield example[text_column]
+
+
+def write_tokenized_shard(tokenizer, texts, shard_path, batch_size=TOKENIZATION_BATCH_SIZE):
+    """
+    Stream-tokenize texts into a binary shard of uint16 token IDs.
+
+    This avoids materializing the full corpus in Python memory.
+    """
+    eot_id = tokenizer.token_to_id("<|endoftext|>")
+    total_tokens = 0
+
+    with open(shard_path, "wb") as f:
+        for text_batch in _batched(texts, batch_size):
+            encoded_batch = tokenizer.encode_batch(text_batch)
+            batch_tokens = []
+            for encoded in encoded_batch:
+                batch_tokens.extend(encoded.ids)
+                batch_tokens.append(eot_id)
+
+            arr = np.asarray(batch_tokens, dtype=np.uint16)
+            arr.tofile(f)
+            total_tokens += len(arr)
+
+    return total_tokens
+
+
 # ---------------------------------------------------------------------------
 # Data download & tokenization
 # ---------------------------------------------------------------------------
@@ -85,9 +128,12 @@ def download_and_tokenize():
 
     # Train tokenizer on a sample of training data
     print("Training tokenizer...")
-    train_texts = ds[HF_DATASET_SPLIT_TRAIN][HF_DATASET_TEXT_COLUMN]
-    sample_size = min(100_000, len(train_texts))
-    sample_texts = train_texts[:sample_size]
+    train_split = ds[HF_DATASET_SPLIT_TRAIN]
+    sample_size = min(100_000, len(train_split))
+    sample_texts = (
+        train_split[i][HF_DATASET_TEXT_COLUMN]
+        for i in range(sample_size)
+    )
     tokenizer = train_tokenizer(sample_texts)
 
     # Tokenize and write shards
@@ -97,19 +143,12 @@ def download_and_tokenize():
     ]:
         print(f"Tokenizing {split_name}...")
         split = ds[split_name]
-        texts = split[HF_DATASET_TEXT_COLUMN]
-
-        all_tokens = []
-        eot_id = tokenizer.token_to_id("<|endoftext|>")
-        for text in texts:
-            encoded = tokenizer.encode(text)
-            all_tokens.extend(encoded.ids)
-            all_tokens.append(eot_id)
-
-        # Write as uint16
-        arr = np.array(all_tokens, dtype=np.uint16)
-        arr.tofile(shard_path)
-        print(f"  Wrote {len(arr):,} tokens to {shard_path}")
+        n_tokens = write_tokenized_shard(
+            tokenizer,
+            iter_dataset_texts(split),
+            shard_path,
+        )
+        print(f"  Wrote {n_tokens:,} tokens to {shard_path}")
 
     print("Data preparation complete.")
 

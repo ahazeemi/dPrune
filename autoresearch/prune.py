@@ -22,7 +22,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from datasets import Dataset
 from dprune import PruningPipeline
 from dprune.scorers.unsupervised import KMeansCentroidDistanceScorer, PerplexityScorer
-from dprune.scorers.supervised import CrossEntropyScorer, ForgettingScorer
 from dprune.pruners.selection import (
     TopKPruner,
     BottomKPruner,
@@ -42,7 +41,7 @@ PRUNE_TIME_BUDGET = 60
 # Baseline: random pruning at 100% (no-op, keeps all data).
 # This establishes the baseline val_bpb. The agent should then try
 # different strategies to beat it.
-SCORER_TYPE = "random"  # Options: "random", "perplexity", "kmeans", "cross_entropy"
+SCORER_TYPE = "random"  # Options: "random", "perplexity", "kmeans"
 PRUNER_TYPE = "random"  # Options: "topk", "bottomk", "stratified", "random"
 PRUNE_RATIO = 1.0       # Float 0.0-1.0: fraction of data to KEEP
 
@@ -62,6 +61,12 @@ def prune_dataset(full_dataset: Dataset, model=None, tokenizer=None) -> Dataset:
     start_time = time.time()
     text_column = "text"
     original_size = len(full_dataset)
+
+    if text_column not in full_dataset.column_names:
+        raise ValueError(
+            f"Expected dataset to include a '{text_column}' column, "
+            f"but found {full_dataset.column_names}"
+        )
 
     # --- No-op shortcut ---
     if PRUNE_RATIO >= 1.0 and SCORER_TYPE == "random":
@@ -90,18 +95,11 @@ def prune_dataset(full_dataset: Dataset, model=None, tokenizer=None) -> Dataset:
             num_clusters=8,
             batch_size=32,
         )
-    elif SCORER_TYPE == "cross_entropy":
-        if model is None or tokenizer is None:
-            raise ValueError("CrossEntropy scorer requires model and tokenizer")
-        scorer = CrossEntropyScorer(
-            model=model,
-            tokenizer=tokenizer,
-            text_column=text_column,
-            label_column="label",
-            batch_size=32,
-        )
     else:
-        raise ValueError(f"Unknown scorer type: {SCORER_TYPE}")
+        raise ValueError(
+            f"Unknown or unsupported scorer type for TinyStories: {SCORER_TYPE}. "
+            "Supported scorers are: random, perplexity, kmeans."
+        )
 
     # --- Build pruner ---
     if PRUNER_TYPE == "topk":

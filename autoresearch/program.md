@@ -19,7 +19,7 @@ Three files:
 4. **Pruning must complete within 60 seconds.** If it times out, the run is invalid.
 5. After each edit, run `python train.py` and observe the reported `val_bpb`.
 6. **If val_bpb improved → `git commit` (keep the change).**
-7. **If val_bpb worsened → `git checkout prune.py` (revert).**
+7. **If val_bpb worsened → `git restore prune.py` (revert).**
 8. Repeat. Target ~12 experiments per hour.
 
 ## Metric
@@ -37,8 +37,9 @@ Score each example in the dataset with a numeric quality/difficulty signal:
 |--------|------|-----------------|-------|
 | `PerplexityScorer` | Unsupervised | KenLM perplexity | Fast. High ppl = harder examples. Needs KenLM model. |
 | `KMeansCentroidDistanceScorer` | Unsupervised | Distance to cluster centroid | Needs model+tokenizer for embeddings. Low dist = representative. |
-| `CrossEntropyScorer` | Supervised | Model CE loss per example | Needs model+tokenizer+labels. High loss = harder. |
-| `ForgettingScorer` | Supervised | Forgetting events during training | Needs prior training run with ForgettingCallback. |
+| `Random` | Baseline | No scoring, random selection only | Cheapest baseline; useful for ratio sweeps. |
+
+This TinyStories workflow is text-only. Do not use `CrossEntropyScorer` or `ForgettingScorer` here unless you first add labels / forgetting-event support to the pipeline.
 
 ### Pruners
 Select a subset based on scores:
@@ -75,6 +76,7 @@ Establish baselines with random pruning at different ratios:
 
 ### Phase 2: Scorer exploration (experiments 6–20)
 Try each scorer with the best ratio from Phase 1:
+- Random + different ratios as a sanity check
 - Perplexity + TopK (keep hard examples)
 - Perplexity + BottomK (keep easy examples)
 - Perplexity + Stratified (balanced diversity)
