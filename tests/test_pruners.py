@@ -1,6 +1,6 @@
 import pytest
 from datasets import Dataset
-from dprune.pruners.selection import TopKPruner, BottomKPruner, StratifiedPruner, RandomPruner
+from dprune.pruners.selection import TopKPruner, BottomKPruner, StratifiedPruner, RandomPruner, ThresholdPruner
 import numpy as np
 
 
@@ -104,3 +104,17 @@ def test_random_pruner(large_scored_dataset):
     original_scores = large_scored_dataset.sort("score")['score']
     pruned_scores = pruned_dataset.sort("score")['score']
     assert original_scores[:expected_size] != pruned_scores 
+
+def test_threshold_pruner_below(scored_dataset):
+    pruned = ThresholdPruner(threshold=3.0, keep="below").prune(scored_dataset)
+    assert pruned['score'] == [0.0, 1.0, 2.0]
+
+
+def test_threshold_pruner_above_inclusive(scored_dataset):
+    pruned = ThresholdPruner(threshold=7.0, keep="above", inclusive=True).prune(scored_dataset)
+    assert pruned['score'] == [7.0, 8.0, 9.0]
+
+
+def test_threshold_pruner_invalid_keep():
+    with pytest.raises(ValueError):
+        ThresholdPruner(threshold=1.0, keep="middle")

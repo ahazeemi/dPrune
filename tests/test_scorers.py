@@ -4,9 +4,10 @@ from datasets import Dataset
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
 from unittest.mock import Mock, patch
 from typing import Callable
+import numpy as np
 
-from dprune.scorers.supervised import CrossEntropyScorer, ForgettingScorer
-from dprune.scorers.unsupervised import KMeansCentroidDistanceScorer, PerplexityScorer
+from dprune.scorers.supervised import CrossEntropyScorer, EL2NScorer, ForgettingScorer
+from dprune.scorers.unsupervised import KMeansCentroidDistanceScorer, PerplexityScorer, SemDeDupScorer
 from dprune.callbacks import ForgettingCallback
 
 
@@ -304,3 +305,43 @@ def test_perplexity_scorer_empty_text_handling():
             assert scores[1] == float('inf')  # Empty text
             assert scores[2] == float('inf')  # Whitespace-only text
             assert scores[3] > 0 and scores[3] < float('inf')  # Normal text 
+
+def test_el2n_scorer(setup_for_scoring):
+    """Tests the EL2NScorer: scores lie in [0, sqrt(2)]."""
+    scorer = EL2NScorer(
+        model=setup_for_scoring["model"],
+        tokenizer=setup_for_scoring["tokenizer"],
+        text_column='text',
+        label_column='label'
+    )
+    scored_dataset = scorer.score(setup_for_scoring["dataset"])
+
+    assert len(scored_dataset['score']) == len(setup_for_scoring["dataset"])
+    assert all(0 <= s <= 2 ** 0.5 + 1e-6 for s in scored_dataset['score'])
+
+
+def test_semdedup_scorer_flags_near_duplicates():
+    """Near-duplicate embeddings get a score near 1; unique ones stay low."""
+    embeddings = np.array([
+        [1.0, 0.0], [1.0, 0.001],   # near-duplicates
+        [0.0, 1.0], [0.5, 1.0],     # distinct directions
+    ])
+    dataset = Dataset.from_dict({'text': ['a', 'a2', 'b', 'c']})
+    scorer = SemDeDupScorer(num_clusters=2, embeddings=embeddings)
+    scored = scorer.score(dataset)
+
+    scores = scored['score']
+    assert len(scores) == 4
+    assert max(scores[:2]) > 0.999 and min(scores[:2]) == -1.0
+    assert max(scores[2:]) < 0.99
+
+
+def test_semdedup_scorer_requires_inputs():
+    with pytest.raises(ValueError):
+        SemDeDupScorer()
+
+
+def test_semdedup_scorer_embedding_length_mismatch():
+    scorer = SemDeDupScorer(num_clusters=1, embeddings=np.zeros((2, 3)))
+    with pytest.raises(ValueError):
+        scorer.score(Dataset.from_dict({'text': ['a', 'b', 'c']}))
