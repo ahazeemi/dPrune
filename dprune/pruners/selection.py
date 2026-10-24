@@ -133,3 +133,26 @@ class RandomPruner(Pruner):
 
         # Use the dataset's built-in shuffle and select for efficiency
         return scored_dataset.shuffle(seed=42).select(range(k_examples))
+
+
+class ThresholdPruner(Pruner):
+    """
+    Pruner that keeps examples whose score is below (or above) a threshold.
+    Useful for score-based filtering such as SemDeDup's epsilon deduplication
+    (`ThresholdPruner(threshold=1 - eps, keep="below")`).
+    """
+
+    def __init__(self, threshold: float, keep: str = "below", inclusive: bool = False):
+        if keep not in ("below", "above"):
+            raise ValueError("keep must be 'below' or 'above'.")
+        self.threshold = threshold
+        self.keep = keep
+        self.inclusive = inclusive
+
+    def prune(self, scored_dataset: Dataset, **kwargs) -> Dataset:
+        scores = scored_dataset["score"]
+        if self.keep == "below":
+            keep = [i for i, s in enumerate(scores) if (s <= self.threshold if self.inclusive else s < self.threshold)]
+        else:
+            keep = [i for i, s in enumerate(scores) if (s >= self.threshold if self.inclusive else s > self.threshold)]
+        return scored_dataset.select(keep)

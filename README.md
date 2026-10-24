@@ -92,7 +92,9 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 
 - **`KMeansCentroidDistanceScorer`**: (Unsupervised) Embeds the data, performs k-means clustering, and scores each example by its distance to its cluster centroid.
 - **`PerplexityScorer`**: (Unsupervised) Calculates perplexity score for each example using the KenLM n-gram language model.
+- **`SemDeDupScorer`**: (Unsupervised) [SemDeDup](https://arxiv.org/abs/2303.09540) semantic deduplication: clusters embeddings and scores each example by its max cosine similarity to another example in the cluster (near 1 = near-duplicate). Prune with `ThresholdPruner(threshold=1 - eps)` or `BottomKPruner`.
 - **`CrossEntropyScorer`**: (Supervised) Scores examples based on the cross-entropy loss from a given model.
+- **`EL2NScorer`**: (Supervised) [EL2N](https://arxiv.org/abs/2107.07075) (Paul et al., 2021): L2 norm of the error between predicted probabilities and the one-hot label; keep the highest scores with `TopKPruner`.
 - **`ForgettingScorer`**: (Supervised) Works with a `ForgettingCallback` to score examples based on how many times they are "forgotten" during training.
 - ...many more coming soon!
 
@@ -102,6 +104,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`TopKPruner`**: Selects the `k` examples with the highest scores.
 - **`BottomKPruner`**: Selects the `k` examples with the lowest scores.
 - **`StratifiedPruner`**: Divides the data into strata based on score quantiles and samples proportionally from each.
+- **`ThresholdPruner`**: Keeps examples whose score is below (or above) a given threshold.
 - **`RandomPruner`**: Randomly selects `k` examples, ignoring scores. Useful for establishing a baseline.
 
 ### Callbacks
