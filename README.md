@@ -96,6 +96,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`CrossEntropyScorer`**: (Supervised) Scores examples based on the cross-entropy loss from a given model.
 - **`EL2NScorer`**: (Supervised) [EL2N](https://arxiv.org/abs/2107.07075) (Paul et al., 2021): L2 norm of the error between predicted probabilities and the one-hot label; keep the highest scores with `TopKPruner`.
 - **`ForgettingScorer`**: (Supervised) Works with a `ForgettingCallback` to score examples based on how many times they are "forgotten" during training.
+- **`DataMapsScorer`**: (Supervised) [Dataset Cartography / Data Maps](https://arxiv.org/abs/2009.10795) (Swayamdipta et al., 2020): scores examples by training-dynamics statistics (`variability`, `confidence`, `correctness`) recorded by a `DataMapsCallback`. Keep high-variability (ambiguous) examples with `TopKPruner`.
 - ...many more coming soon!
 
 
@@ -110,6 +111,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 ### Callbacks
 
 - **`ForgettingCallback`**: A `TrainerCallback` that records learning events during training to be used with the `ForgettingScorer`.
+- **`DataMapsCallback`**: A `TrainerCallback` that records per-epoch gold-label probabilities, to be used with the `DataMapsScorer`.
 
 ## 🎨 Extending dPrune
 
