@@ -7,7 +7,7 @@ from transformers import PreTrainedModel, PreTrainedTokenizer
 from typing import Sequence, Union
 
 from ..base import Scorer
-from ..callbacks import ForgettingCallback
+from ..callbacks import ForgettingCallback, DataMapsCallback
 
 
 class CrossEntropyScorer(Scorer):
@@ -164,3 +164,45 @@ class ForgettingScorer(Scorer):
             )
 
         return dataset.add_column("score", scores)
+
+
+class DataMapsScorer(Scorer):
+    """
+    Training-dynamics scorer from Swayamdipta et al., 2020, "Dataset
+    Cartography: Mapping and Diagnosing Datasets with Training Dynamics"
+    (https://arxiv.org/abs/2009.10795).
+
+    Works with a `DataMapsCallback` used during training. Each example is
+    described by its *confidence* (mean gold-label probability over epochs),
+    *variability* (std of that probability) and *correctness* (fraction of
+    epochs where the gold label was predicted). The `metric` argument picks
+    which one becomes the `score` column:
+
+    - "variability": keep the highest values (`TopKPruner`) to select
+      "ambiguous" examples, which the paper finds best for generalization.
+    - "confidence": keep the lowest values (`BottomKPruner`) for "hard-to-learn"
+      examples; the highest are "easy-to-learn".
+    - "correctness": fraction of epochs correctly predicted.
+
+    All three statistics are also added as extra columns.
+    """
+
+    METRICS = ("variability", "confidence", "correctness")
+
+    def __init__(self, data_maps_callback: DataMapsCallback, metric: str = "variability"):
+        if metric not in self.METRICS:
+            raise ValueError(f"metric must be one of {self.METRICS}, got {metric!r}")
+        self.callback = data_maps_callback
+        self.metric = metric
+
+    def score(self, dataset: Dataset, **kwargs) -> Dataset:
+        stats = self.callback.calculate_statistics()
+        if len(stats["confidence"]) != len(dataset):
+            raise ValueError(
+                f"The number of examples recorded by the callback ({len(stats['confidence'])}) "
+                f"does not match the dataset size ({len(dataset)}). Ensure the same dataset "
+                "was used for training and scoring."
+            )
+        for name in self.METRICS:
+            dataset = dataset.add_column(name, stats[name])
+        return dataset.add_column("score", stats[self.metric])

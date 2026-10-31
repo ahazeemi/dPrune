@@ -62,3 +62,28 @@ def test_calculate_forgetting_scores():
     scores = callback.calculate_forgetting_scores()
     
     assert scores == [1, 0, 0, 1, 0, 2] 
+
+def test_data_maps_callback_and_scorer(mock_trainer):
+    from dprune.callbacks import DataMapsCallback
+    from dprune.scorers import DataMapsScorer
+    cb = DataMapsCallback()
+    cb.trainer = mock_trainer
+    labels = np.array([0, 1, 0, 1])
+    # Logits giving gold prob ~ [0.5->high, ...]; example 0 flips between epochs
+    for logits in ([[5, -5], [-5, 5], [5, -5], [0, 0]], [[-5, 5], [-5, 5], [5, -5], [0, 0]]):
+        mock_trainer.predict.return_value = Mock(predictions=np.array(logits, dtype=float), label_ids=labels)
+        cb.on_epoch_end(args=None, state=None, control=None)
+    stats = cb.calculate_statistics()
+    assert stats["variability"][0] > 0.4
+    assert stats["variability"][1] < 1e-6
+    assert abs(stats["confidence"][3] - 0.5) < 1e-6
+    assert stats["correctness"][0] == 0.5
+
+    ds = mock_trainer.train_dataset
+    scored = DataMapsScorer(cb, metric="variability").score(ds)
+    assert scored["score"] == scored["variability"]
+    assert {"confidence", "correctness"} <= set(scored.column_names)
+    with pytest.raises(ValueError):
+        DataMapsScorer(cb, metric="bogus")
+    with pytest.raises(ValueError):
+        DataMapsScorer(cb).score(ds.select(range(2)))
