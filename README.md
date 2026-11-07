@@ -106,6 +106,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`BottomKPruner`**: Selects the `k` examples with the lowest scores.
 - **`StratifiedPruner`**: Divides the data into strata based on score quantiles and samples proportionally from each.
 - **`ThresholdPruner`**: Keeps examples whose score is below (or above) a given threshold.
+- **`CoveragePruner`**: [Coverage-centric Coreset Selection](https://arxiv.org/abs/2210.15809) (Zheng et al., 2023): drops the hardest fraction (likely noisy), then samples evenly across score strata so the subset covers easy-to-hard examples. Strong at high pruning rates; use with difficulty scores such as `EL2NScorer`.
 - **`RandomPruner`**: Randomly selects `k` examples, ignoring scores. Useful for establishing a baseline.
 
 ### Callbacks
