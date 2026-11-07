@@ -118,3 +118,26 @@ def test_threshold_pruner_above_inclusive(scored_dataset):
 def test_threshold_pruner_invalid_keep():
     with pytest.raises(ValueError):
         ThresholdPruner(threshold=1.0, keep="middle")
+
+
+def test_coverage_pruner_covers_score_range():
+    from dprune.pruners import CoveragePruner
+    ds = Dataset.from_dict({"score": [float(i) for i in range(100)]})
+    out = CoveragePruner(k=10, num_strata=10, hard_cutoff=0.1).prune(ds)
+    assert len(out) == 10
+    scores = sorted(out["score"])
+    assert max(scores) < 90  # hardest 10% dropped
+    assert len({int(s // 9) for s in scores}) >= 9  # spread across strata
+
+
+def test_coverage_pruner_edge_cases():
+    from dprune.pruners import CoveragePruner
+    ds = Dataset.from_dict({"score": [1.0] * 20})
+    assert len(CoveragePruner(k=0.5).prune(ds)) == 10
+    assert len(CoveragePruner(k=1.0).prune(ds)) == 20
+    skewed = Dataset.from_dict({"score": [0.0] * 50 + [1.0] * 2})
+    assert len(CoveragePruner(k=20, num_strata=5, hard_cutoff=0).prune(skewed)) == 20
+    with pytest.raises(ValueError):
+        CoveragePruner(k=0.5, hard_cutoff=1.0)
+    with pytest.raises(ValueError):
+        CoveragePruner(k=1.5).prune(ds)

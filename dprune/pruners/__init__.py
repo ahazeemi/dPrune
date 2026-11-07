@@ -2,7 +2,7 @@
 Pruners: Classes for selecting subsets of scored datasets.
 """
 
-from .selection import TopKPruner, BottomKPruner, StratifiedPruner, RandomPruner, ThresholdPruner
+from .selection import TopKPruner, BottomKPruner, StratifiedPruner, RandomPruner, ThresholdPruner, CoveragePruner
 
 __all__ = [
     "TopKPruner",
@@ -10,4 +10,5 @@ __all__ = [
     "StratifiedPruner",
     "RandomPruner",
     "ThresholdPruner",
+    "CoveragePruner",
 ]

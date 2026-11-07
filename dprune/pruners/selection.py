@@ -1,5 +1,6 @@
 import math
 from typing import Union
+import numpy as np
 from datasets import Dataset
 from ..base import Pruner
 import pandas as pd
@@ -156,3 +157,74 @@ class ThresholdPruner(Pruner):
         else:
             keep = [i for i, s in enumerate(scores) if (s >= self.threshold if self.inclusive else s > self.threshold)]
         return scored_dataset.select(keep)
+
+
+class CoveragePruner(Pruner):
+    """
+    Coverage-centric Coreset Selection (CCS) from Zheng et al., 2023, "Coverage-centric
+    Coreset Selection for High Pruning Rates" (https://arxiv.org/abs/2210.15809).
+
+    Assumes a higher score means a harder example (e.g. `EL2NScorer`,
+    `CrossEntropyScorer`, or `DataMapsScorer` with an inverted metric). The hardest
+    `hard_cutoff` fraction of examples is dropped first (they tend to be noisy or
+    mislabeled), then the remaining score range is split into `num_strata` equal-width
+    bins and the budget is spread as evenly as possible across bins, sampling randomly
+    inside each. Sparse bins are kept whole and unused budget is redistributed to
+    denser bins, so the selection covers easy, medium and hard examples. This is
+    especially helpful at high pruning rates, where top-k selection of hard examples fails.
+    """
+
+    def __init__(
+        self,
+        k: Union[float, int],
+        num_strata: int = 50,
+        hard_cutoff: float = 0.1,
+        seed: int = 42,
+    ):
+        if not (isinstance(num_strata, int) and num_strata > 0):
+            raise ValueError("num_strata must be a positive integer.")
+        if not (0 <= hard_cutoff < 1):
+            raise ValueError("hard_cutoff must be in [0, 1).")
+        self.k = k
+        self.num_strata = num_strata
+        self.hard_cutoff = hard_cutoff
+        self.seed = seed
+
+    def prune(self, scored_dataset: Dataset, **kwargs) -> Dataset:
+        if isinstance(self.k, float) and (self.k < 0 or self.k > 1):
+            raise ValueError(f"k must be a float between 0 and 1, but got {self.k}")
+
+        n = len(scored_dataset)
+        k_examples = math.ceil(n * self.k) if isinstance(self.k, float) else self.k
+        if k_examples >= n:
+            return scored_dataset
+
+        scores = np.asarray(scored_dataset["score"], dtype=np.float64)
+        rng = np.random.RandomState(self.seed)
+
+        # Drop the hardest fraction, but never so many that the budget cannot be met.
+        n_drop = min(int(math.floor(n * self.hard_cutoff)), n - k_examples)
+        order = np.argsort(scores, kind="stable")
+        candidates = order[: n - n_drop]
+
+        cand_scores = scores[candidates]
+        lo, hi = cand_scores.min(), cand_scores.max()
+        if hi == lo:
+            bins = np.zeros(len(candidates), dtype=int)
+        else:
+            bins = np.minimum(
+                ((cand_scores - lo) / (hi - lo) * self.num_strata).astype(int),
+                self.num_strata - 1,
+            )
+        strata = [candidates[bins == b] for b in range(self.num_strata)]
+        strata = [s for s in strata if len(s) > 0]
+        strata.sort(key=len)
+
+        selected = []
+        remaining = k_examples
+        for i, stratum in enumerate(strata):
+            quota = min(len(stratum), math.ceil(remaining / (len(strata) - i)))
+            selected.extend(rng.choice(stratum, size=quota, replace=False).tolist())
+            remaining -= quota
+
+        return scored_dataset.select(sorted(selected))
