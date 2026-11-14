@@ -228,3 +228,42 @@ class CoveragePruner(Pruner):
             remaining -= quota
 
         return scored_dataset.select(sorted(selected))
+
+
+class ImportanceResamplingPruner(Pruner):
+    """
+    Samples `k` examples without replacement with probability proportional to
+    `exp(score / temperature)`, using the Gumbel top-k trick: add i.i.d. Gumbel
+    noise to the scores and keep the top-k. This is the resampling step of DSIR
+    (Xie et al., 2023, https://arxiv.org/abs/2302.03169) and expects scores that
+    are log importance weights (e.g. from `DSIRScorer`).
+
+    Compared to `TopKPruner`, sampling keeps some diversity instead of
+    concentrating on the few most target-like examples. As `temperature -> 0`
+    it reduces to `TopKPruner`; as it grows it approaches `RandomPruner`.
+    """
+
+    def __init__(self, k: Union[float, int], temperature: float = 1.0, seed: int = 42):
+        if temperature <= 0:
+            raise ValueError("temperature must be positive")
+        self.k = k
+        self.temperature = temperature
+        self.seed = seed
+
+    def prune(self, scored_dataset: Dataset, **kwargs) -> Dataset:
+        if isinstance(self.k, float) and (self.k < 0 or self.k > 1):
+            raise ValueError(f"k must be a float between 0 and 1, but got {self.k}")
+
+        num_examples = len(scored_dataset)
+        if isinstance(self.k, float):
+            k_examples = math.ceil(num_examples * self.k)
+        else:
+            k_examples = self.k
+        if k_examples >= num_examples:
+            return scored_dataset
+
+        scores = np.asarray(scored_dataset["score"], dtype=np.float64) / self.temperature
+        rng = np.random.default_rng(self.seed)
+        perturbed = scores + rng.gumbel(size=num_examples)
+        indices = np.argsort(-perturbed, kind="stable")[:k_examples]
+        return scored_dataset.select(sorted(indices.tolist()))

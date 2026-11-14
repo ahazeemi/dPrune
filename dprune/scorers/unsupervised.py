@@ -1,3 +1,6 @@
+import re
+import zlib
+
 import numpy as np
 import torch
 from datasets import Dataset
@@ -301,3 +304,129 @@ class PerplexityScorer(Scorer):
                     scores.append(score)
 
         return dataset.add_column("score", scores)
+
+
+_DSIR_TOKEN_RE = re.compile(r"\w+|[^\w\s]+")
+
+
+def _dsir_tokenize(text: str):
+    """Lowercased word/punctuation tokenization (like NLTK's wordpunct_tokenize)."""
+    return _DSIR_TOKEN_RE.findall(str(text).lower())
+
+
+def _dsir_hashed_ngrams(text: str, num_buckets: int, ngram_order: int):
+    """Sparse counts of hashed 1..ngram_order-grams as (bucket_ids, counts).
+    Uses a stable hash (crc32), so features are reproducible across processes
+    (unlike Python's built-in `hash`)."""
+    tokens = _dsir_tokenize(text)
+    buckets = [
+        zlib.crc32(" ".join(tokens[i:i + n]).encode("utf-8")) % num_buckets
+        for n in range(1, ngram_order + 1)
+        for i in range(len(tokens) - n + 1)
+    ]
+    return np.unique(np.asarray(buckets, dtype=np.int64), return_counts=True)
+
+
+class DSIRScorer(Scorer):
+    """
+    Data Selection with Importance Resampling (DSIR) from Xie et al., 2023,
+    "Data Selection for Language Models via Importance Resampling" (NeurIPS 2023,
+    https://arxiv.org/abs/2302.03169).
+
+    Selects raw data that looks like a (small) *target* dataset. Every text is
+    mapped to hashed unigram + bigram counts; two bag-of-ngrams models are fit,
+    one on the target texts and one on the raw dataset being scored. Each raw
+    example is scored by its log importance weight
+
+        score(x) = sum_j count_j(x) * (log p_target(j) - log p_raw(j)),
+
+    so higher means "more like the target distribution". No model, GPU or labels
+    are needed, which makes it practical for very large corpora.
+
+    Use `ImportanceResamplingPruner` to reproduce DSIR's Gumbel top-k resampling
+    (sampling proportional to the importance weights, without replacement), or
+    `TopKPruner` for a deterministic top-k selection.
+    """
+
+    def __init__(
+        self,
+        target_texts,
+        text_column: str,
+        raw_texts=None,
+        num_buckets: int = 10000,
+        ngram_order: int = 2,
+        smoothing: float = 1.0,
+        length_normalize: bool = False,
+    ):
+        """
+        Args:
+            target_texts: Iterable of strings representing the target distribution
+                (e.g. a few thousand in-domain examples).
+            text_column (str): Name of the text column in the dataset to score.
+            raw_texts: Optional iterable of strings to fit the raw distribution on.
+                Defaults to the texts of the dataset being scored.
+            num_buckets (int): Number of hash buckets for n-gram features.
+            ngram_order (int): Highest n-gram order (2 = unigrams and bigrams, as in
+                the paper).
+            smoothing (float): Add-`smoothing` (Laplace) pseudocount per bucket.
+            length_normalize (bool): Divide each score by the example's number of
+                n-gram features, which removes the bias towards long documents.
+        """
+        if not text_column:
+            raise ValueError("text_column cannot be empty")
+        if not isinstance(num_buckets, int) or num_buckets <= 0:
+            raise ValueError("num_buckets must be a positive integer")
+        if not isinstance(ngram_order, int) or ngram_order <= 0:
+            raise ValueError("ngram_order must be a positive integer")
+        if smoothing <= 0:
+            raise ValueError("smoothing must be positive")
+        target_texts = list(target_texts)
+        if len(target_texts) == 0:
+            raise ValueError("target_texts cannot be empty")
+
+        self.text_column = text_column
+        self.num_buckets = num_buckets
+        self.ngram_order = ngram_order
+        self.smoothing = smoothing
+        self.length_normalize = length_normalize
+        self.target_log_probs = self._fit(target_texts)
+        self.raw_texts = None if raw_texts is None else list(raw_texts)
+
+    def _accumulate(self, features) -> np.ndarray:
+        counts = np.zeros(self.num_buckets, dtype=np.float64)
+        for ids, cnt in features:
+            np.add.at(counts, ids, cnt)
+        return counts
+
+    def _log_probs(self, counts: np.ndarray) -> np.ndarray:
+        counts = counts + self.smoothing
+        return np.log(counts / counts.sum())
+
+    def _fit(self, texts) -> np.ndarray:
+        return self._log_probs(self._accumulate(
+            _dsir_hashed_ngrams(t, self.num_buckets, self.ngram_order) for t in texts
+        ))
+
+    def score(self, dataset: Dataset, **kwargs) -> Dataset:
+        if self.text_column not in dataset.column_names:
+            raise ValueError(
+                f"Column '{self.text_column}' not found in dataset. "
+                f"Available columns: {dataset.column_names}"
+            )
+        features = [
+            _dsir_hashed_ngrams(t, self.num_buckets, self.ngram_order)
+            for t in tqdm(dataset[self.text_column], desc="Hashing n-grams")
+        ]
+
+        if self.raw_texts is None:
+            raw_log_probs = self._log_probs(self._accumulate(features))
+        else:
+            raw_log_probs = self._fit(self.raw_texts)
+
+        log_ratio = self.target_log_probs - raw_log_probs
+        scores = np.array([float(cnt @ log_ratio[ids]) for ids, cnt in features])
+        if self.length_normalize:
+            lengths = np.array([cnt.sum() for _, cnt in features], dtype=np.float64)
+            scores = scores / np.maximum(lengths, 1.0)
+
+        return dataset.add_column("score", scores.tolist())

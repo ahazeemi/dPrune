@@ -93,6 +93,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`KMeansCentroidDistanceScorer`**: (Unsupervised) Embeds the data, performs k-means clustering, and scores each example by its distance to its cluster centroid.
 - **`PerplexityScorer`**: (Unsupervised) Calculates perplexity score for each example using the KenLM n-gram language model.
 - **`SemDeDupScorer`**: (Unsupervised) [SemDeDup](https://arxiv.org/abs/2303.09540) semantic deduplication: clusters embeddings and scores each example by its max cosine similarity to another example in the cluster (near 1 = near-duplicate). Prune with `ThresholdPruner(threshold=1 - eps)` or `BottomKPruner`.
+- **`DSIRScorer`**: (Unsupervised, targeted) [DSIR](https://arxiv.org/abs/2302.03169) (Xie et al., NeurIPS 2023): selects data that resembles a small *target* set. Fits hashed unigram/bigram models on the target and raw data and scores each example by its log importance weight (higher = more target-like). No model or GPU needed, so it scales to very large corpora. Pair with `ImportanceResamplingPruner` (as in the paper) or `TopKPruner`.
 - **`CrossEntropyScorer`**: (Supervised) Scores examples based on the cross-entropy loss from a given model.
 - **`EL2NScorer`**: (Supervised) [EL2N](https://arxiv.org/abs/2107.07075) (Paul et al., 2021): L2 norm of the error between predicted probabilities and the one-hot label; keep the highest scores with `TopKPruner`.
 - **`ForgettingScorer`**: (Supervised) Works with a `ForgettingCallback` to score examples based on how many times they are "forgotten" during training.
@@ -107,6 +108,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`StratifiedPruner`**: Divides the data into strata based on score quantiles and samples proportionally from each.
 - **`ThresholdPruner`**: Keeps examples whose score is below (or above) a given threshold.
 - **`CoveragePruner`**: [Coverage-centric Coreset Selection](https://arxiv.org/abs/2210.15809) (Zheng et al., 2023): drops the hardest fraction (likely noisy), then samples evenly across score strata so the subset covers easy-to-hard examples. Strong at high pruning rates; use with difficulty scores such as `EL2NScorer`.
+- **`ImportanceResamplingPruner`**: Samples `k` examples without replacement with probability proportional to `exp(score / temperature)` via the Gumbel top-k trick, the resampling step of [DSIR](https://arxiv.org/abs/2302.03169). Use with log-weight scores such as `DSIRScorer`. It keeps more diversity than `TopKPruner`.
 - **`RandomPruner`**: Randomly selects `k` examples, ignoring scores. Useful for establishing a baseline.
 
 ### Callbacks
@@ -202,6 +204,32 @@ pipeline = PruningPipeline(scorer=scorer, pruner=TopKPruner(k=0.8)) # Keep 80%
 pruned_dataset = pipeline.run(raw_dataset)
 
 print(f"Pruned with forgetting scores, final size: {len(pruned_dataset)}")
+```
+
+## 🎯 Targeted Selection with DSIR
+
+When you have a small sample of the data you *want* (e.g. in-domain text) and a large pool of raw data, `DSIRScorer` selects the raw examples that best match the target distribution:
+
+```python
+from datasets import Dataset
+from dprune import PruningPipeline, DSIRScorer, ImportanceResamplingPruner
+
+target_texts = [
+    "The patient was prescribed 20mg of the drug daily.",
+    "Clinical trial results show reduced symptoms.",
+]
+raw_dataset = Dataset.from_dict({"text": [
+    "The doctor adjusted the patient's medication.",
+    "The striker scored in the final minute.",
+    "A new drug trial enrolled 300 patients.",
+    "Stocks fell sharply on Monday.",
+]})
+
+scorer = DSIRScorer(target_texts=target_texts, text_column="text")
+pruner = ImportanceResamplingPruner(k=0.5, seed=0)  # sample proportional to importance weights
+
+selected = PruningPipeline(scorer=scorer, pruner=pruner).run(raw_dataset)
+print(selected["text"])
 ```
 
 ## 🧪 Running Tests
