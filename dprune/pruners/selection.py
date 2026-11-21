@@ -267,3 +267,157 @@ class ImportanceResamplingPruner(Pruner):
         perturbed = scores + rng.gumbel(size=num_examples)
         indices = np.argsort(-perturbed, kind="stable")[:k_examples]
         return scored_dataset.select(sorted(indices.tolist()))
+
+
+class D2Pruner(Pruner):
+    """
+    D2 Pruning from Maharana, Yadav & Bansal, ICLR 2024, "D2 Pruning: Message Passing
+    for Balancing Diversity and Difficulty in Data Pruning"
+    (https://arxiv.org/abs/2310.07931).
+
+    The dataset is a k-nearest-neighbour graph over example embeddings, with each
+    node starting from its difficulty score (the `score` column, higher = harder,
+    e.g. from `EL2NScorer`, `CrossEntropyScorer` or `ForgettingScorer`).
+
+    1. **Forward message passing**: each node gathers difficulty from its neighbours,
+       ``s_i <- s_i + sum_j exp(-forward_gamma * d_ij^2) * s_j``, so examples in
+       dense, hard regions score highest.
+    2. **Greedy selection with reverse message passing**: the node with the highest
+       updated score is selected, then each of its neighbours is down-weighted by
+       ``exp(-reverse_gamma * d_ij^2) * s_i``, so near-duplicates of selected
+       examples become less likely to be picked.
+
+    The result covers the embedding space while still favouring informative
+    examples. Embeddings are read from `embedding_column` of the scored dataset,
+    passed as ``prune(dataset, embeddings=...)``, or computed with a Hugging Face
+    `model` / `tokenizer` (CLS embedding of `text_column`).
+
+    Args:
+        k: Number (int) or fraction (float in [0, 1]) of examples to keep.
+        n_neighbors: Neighbours per node in the kNN graph.
+        forward_gamma: Decay of forward messages with distance.
+        reverse_gamma: Decay of reverse (down-weighting) messages with distance.
+        normalize_embeddings: L2-normalise embeddings before building the graph.
+        normalize_scores: Min-max scale difficulty scores to [0, 1] first.
+        hard_cutoff: Fraction of hardest examples to drop before selection
+            (optional, as in CCS; useful with noisy labels).
+        embedding_column: Dataset column holding embedding vectors.
+        model, tokenizer, text_column, batch_size: Used to compute embeddings
+            when none are supplied.
+    """
+
+    def __init__(
+        self,
+        k: Union[float, int],
+        n_neighbors: int = 10,
+        forward_gamma: float = 1.0,
+        reverse_gamma: float = 1.0,
+        normalize_embeddings: bool = True,
+        normalize_scores: bool = True,
+        hard_cutoff: float = 0.0,
+        embedding_column: str = "embedding",
+        model=None,
+        tokenizer=None,
+        text_column: str = "text",
+        batch_size: int = 8,
+    ):
+        if not (isinstance(n_neighbors, int) and n_neighbors > 0):
+            raise ValueError("n_neighbors must be a positive integer.")
+        if forward_gamma < 0 or reverse_gamma < 0:
+            raise ValueError("forward_gamma and reverse_gamma must be non-negative.")
+        if not (0 <= hard_cutoff < 1):
+            raise ValueError("hard_cutoff must be in [0, 1).")
+        self.k = k
+        self.n_neighbors = n_neighbors
+        self.forward_gamma = forward_gamma
+        self.reverse_gamma = reverse_gamma
+        self.normalize_embeddings = normalize_embeddings
+        self.normalize_scores = normalize_scores
+        self.hard_cutoff = hard_cutoff
+        self.embedding_column = embedding_column
+        self.model = model
+        self.tokenizer = tokenizer
+        self.text_column = text_column
+        self.batch_size = batch_size
+
+    def _get_embeddings(self, scored_dataset: Dataset, embeddings) -> np.ndarray:
+        if embeddings is not None:
+            emb = np.asarray(embeddings, dtype=np.float64)
+        elif self.embedding_column in scored_dataset.column_names:
+            emb = np.asarray(scored_dataset[self.embedding_column], dtype=np.float64)
+        elif self.model is not None and self.tokenizer is not None:
+            from ..scorers.unsupervised import _get_embeddings
+
+            emb = _get_embeddings(
+                scored_dataset, self.model, self.tokenizer, self.text_column, self.batch_size
+            ).astype(np.float64)
+        else:
+            raise ValueError(
+                "D2Pruner needs embeddings: pass `embeddings=` to prune(), add an "
+                f"'{self.embedding_column}' column, or provide `model` and `tokenizer`."
+            )
+        if emb.ndim != 2 or emb.shape[0] != len(scored_dataset):
+            raise ValueError(
+                f"embeddings must have shape (num_examples, dim); got {emb.shape} "
+                f"for {len(scored_dataset)} examples."
+            )
+        return emb
+
+    def prune(self, scored_dataset: Dataset, embeddings=None, **kwargs) -> Dataset:
+        import heapq
+        from sklearn.neighbors import NearestNeighbors
+
+        if isinstance(self.k, float) and (self.k < 0 or self.k > 1):
+            raise ValueError(f"k must be a float between 0 and 1, but got {self.k}")
+
+        n = len(scored_dataset)
+        k_examples = math.ceil(n * self.k) if isinstance(self.k, float) else self.k
+        if k_examples >= n:
+            return scored_dataset
+        if k_examples <= 0:
+            return scored_dataset.select([])
+
+        emb = self._get_embeddings(scored_dataset, embeddings)
+        scores = np.asarray(scored_dataset["score"], dtype=np.float64)
+
+        # Optionally drop the hardest fraction (never below the budget).
+        n_drop = min(int(math.floor(n * self.hard_cutoff)), n - k_examples)
+        candidates = np.argsort(scores, kind="stable")[: n - n_drop]
+        emb, scores = emb[candidates], scores[candidates]
+        m = len(candidates)
+
+        if self.normalize_embeddings:
+            norms = np.linalg.norm(emb, axis=1, keepdims=True)
+            emb = emb / np.where(norms == 0, 1.0, norms)
+        if self.normalize_scores:
+            lo, hi = scores.min(), scores.max()
+            scores = (scores - lo) / (hi - lo) if hi > lo else np.ones_like(scores)
+
+        # kNN graph (first neighbour returned is the node itself).
+        n_nb = min(self.n_neighbors + 1, m)
+        dists, nbrs = NearestNeighbors(n_neighbors=n_nb).fit(emb).kneighbors(emb)
+        dists, nbrs = dists[:, 1:], nbrs[:, 1:]
+        sq = dists ** 2
+
+        # Forward message passing.
+        node = scores + (np.exp(-self.forward_gamma * sq) * scores[nbrs]).sum(axis=1)
+        reverse_w = np.exp(-self.reverse_gamma * sq)
+
+        # Greedy selection with reverse message passing (max-heap with stale entries).
+        heap = [(-v, i) for i, v in enumerate(node)]
+        heapq.heapify(heap)
+        selected = np.zeros(m, dtype=bool)
+        picked = []
+        while len(picked) < k_examples and heap:
+            neg_v, i = heapq.heappop(heap)
+            if selected[i] or -neg_v != node[i]:
+                continue
+            selected[i] = True
+            picked.append(i)
+            s_i = node[i]
+            for j, w in zip(nbrs[i], reverse_w[i]):
+                if not selected[j]:
+                    node[j] -= w * s_i
+                    heapq.heappush(heap, (-node[j], j))
+
+        return scored_dataset.select(sorted(candidates[picked].tolist()))

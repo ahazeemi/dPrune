@@ -17,7 +17,7 @@ Data pruning is the process of selecting a smaller, more informative, and a high
 * 🧠 **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
 * 🎯 **Supervised**: Score data based on model outputs (e.g., cross-entropy loss, forgetting scores).
 * 🔍 **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings, perplexity scores).
-* ✂️ **Multiple Pruning Strategies**: Supports top/bottom-k pruning, stratified sampling, and random pruning.
+* ✂️ **Multiple Pruning Strategies**: Supports top/bottom-k, stratified, coverage-centric, importance-resampling, graph-based (D2) and random pruning.
 
 ## 📦 Installation
 
@@ -109,6 +109,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`ThresholdPruner`**: Keeps examples whose score is below (or above) a given threshold.
 - **`CoveragePruner`**: [Coverage-centric Coreset Selection](https://arxiv.org/abs/2210.15809) (Zheng et al., 2023): drops the hardest fraction (likely noisy), then samples evenly across score strata so the subset covers easy-to-hard examples. Strong at high pruning rates; use with difficulty scores such as `EL2NScorer`.
 - **`ImportanceResamplingPruner`**: Samples `k` examples without replacement with probability proportional to `exp(score / temperature)` via the Gumbel top-k trick, the resampling step of [DSIR](https://arxiv.org/abs/2302.03169). Use with log-weight scores such as `DSIRScorer`. It keeps more diversity than `TopKPruner`.
+- **`D2Pruner`**: [D2 Pruning](https://arxiv.org/abs/2310.07931) (Maharana et al., ICLR 2024): builds a kNN graph over example embeddings, spreads difficulty scores to neighbours (forward message passing), then greedily selects the highest-scoring example and down-weights its neighbours (reverse message passing). The subset favours hard examples and still covers the whole embedding space. Use with any difficulty scorer (`EL2NScorer`, `CrossEntropyScorer`, `ForgettingScorer`, ...) plus embeddings from an `embedding` column, `prune(..., embeddings=...)`, or a `model`/`tokenizer`.
 - **`RandomPruner`**: Randomly selects `k` examples, ignoring scores. Useful for establishing a baseline.
 
 ### Callbacks
@@ -231,6 +232,27 @@ pruner = ImportanceResamplingPruner(k=0.5, seed=0)  # sample proportional to imp
 selected = PruningPipeline(scorer=scorer, pruner=pruner).run(raw_dataset)
 print(selected["text"])
 ```
+
+## 🕸️ Balancing Difficulty and Diversity with D2 Pruning
+
+Picking only the hardest examples tends to oversample a few dense, hard regions. `D2Pruner` combines any difficulty score with embedding-space diversity:
+
+```python
+from dprune import EL2NScorer, D2Pruner
+
+scored = EL2NScorer(model=model, tokenizer=tokenizer, text_column="text", label_column="label").score(train_dataset)
+
+pruner = D2Pruner(
+    k=0.3,              # keep 30%
+    n_neighbors=10,     # kNN graph size
+    forward_gamma=1.0,  # how far difficulty spreads to neighbours
+    reverse_gamma=1.0,  # how strongly selected examples suppress their neighbours
+    model=model, tokenizer=tokenizer, text_column="text",  # or pass embeddings=...
+)
+coreset = pruner.prune(scored)
+```
+
+If you already have embeddings (e.g. from a sentence encoder), pass them directly: `pruner.prune(scored, embeddings=emb)`.
 
 ## 🧪 Running Tests
 
