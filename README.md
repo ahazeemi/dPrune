@@ -17,7 +17,7 @@ Data pruning is the process of selecting a smaller, more informative, and a high
 * 🧠 **Supervised & Unsupervised Scoring Methods**: Includes a variety of common pruning techniques.
 * 🎯 **Supervised**: Score data based on model outputs (e.g., cross-entropy loss, forgetting scores).
 * 🔍 **Unsupervised**: Score data based on intrinsic properties (e.g., clustering embeddings, perplexity scores).
-* ✂️ **Multiple Pruning Strategies**: Supports top/bottom-k, stratified, coverage-centric, importance-resampling, graph-based (D2) and random pruning.
+* ✂️ **Multiple Pruning Strategies**: Supports top/bottom-k, threshold, stratified, coverage-centric, importance-resampling, graph-based (D2) and random pruning.
 
 ## 📦 Installation
 
@@ -94,6 +94,7 @@ The `PruningPipeline` is a convenience wrapper that chains a `Scorer` and a `Pru
 - **`PerplexityScorer`**: (Unsupervised) Calculates perplexity score for each example using the KenLM n-gram language model.
 - **`SemDeDupScorer`**: (Unsupervised) [SemDeDup](https://arxiv.org/abs/2303.09540) semantic deduplication: clusters embeddings and scores each example by its max cosine similarity to another example in the cluster (near 1 = near-duplicate). Prune with `ThresholdPruner(threshold=1 - eps)` or `BottomKPruner`.
 - **`DSIRScorer`**: (Unsupervised, targeted) [DSIR](https://arxiv.org/abs/2302.03169) (Xie et al., NeurIPS 2023): selects data that resembles a small *target* set. Fits hashed unigram/bigram models on the target and raw data and scores each example by its log importance weight (higher = more target-like). No model or GPU needed, so it scales to very large corpora. Pair with `ImportanceResamplingPruner` (as in the paper) or `TopKPruner`.
+- **`IFDScorer`**: (Instruction tuning) [IFD / Cherry LLM](https://arxiv.org/abs/2308.12032) (Li et al., NAACL 2024): Instruction-Following Difficulty, `PPL(response | instruction) / PPL(response)` under a causal LM. High = the instruction barely helps, so the example is hard and informative; `>= 1` usually means a misaligned pair. Drop `>= 1` with `ThresholdPruner(threshold=1.0)`, then keep the top few percent with `TopKPruner`. A small proxy model such as GPT-2 works well ([Superfiltering](https://arxiv.org/abs/2402.00530)).
 - **`CrossEntropyScorer`**: (Supervised) Scores examples based on the cross-entropy loss from a given model.
 - **`EL2NScorer`**: (Supervised) [EL2N](https://arxiv.org/abs/2107.07075) (Paul et al., 2021): L2 norm of the error between predicted probabilities and the one-hot label; keep the highest scores with `TopKPruner`.
 - **`ForgettingScorer`**: (Supervised) Works with a `ForgettingCallback` to score examples based on how many times they are "forgotten" during training.
@@ -253,6 +254,34 @@ coreset = pruner.prune(scored)
 ```
 
 If you already have embeddings (e.g. from a sentence encoder), pass them directly: `pruner.prune(scored, embeddings=emb)`.
+
+## 🍒 Selecting Instruction-Tuning Data with IFD
+
+`IFDScorer` picks the instruction/response pairs that a language model finds hardest to follow. That subset is often only 5-10% of the data. It works on Alpaca-style datasets (`instruction`, `input`, `output` columns) with any causal LM:
+
+```python
+from datasets import load_dataset
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from dprune import IFDScorer, ThresholdPruner, TopKPruner
+
+dataset = load_dataset("tatsu-lab/alpaca", split="train")
+
+# A small proxy model is enough to rank data (Superfiltering); use your base model for the paper's setup.
+tokenizer = AutoTokenizer.from_pretrained("gpt2")
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+
+scorer = IFDScorer(
+    model, tokenizer,
+    instruction_column="instruction", input_column="input", response_column="output",
+    max_length=512, batch_size=16,
+)
+scored = scorer.score(dataset)
+
+valid = ThresholdPruner(threshold=1.0, keep="below").prune(scored)  # instruction must help
+cherry = TopKPruner(k=0.1).prune(valid)                               # keep the hardest 10%
+```
+
+The prompt defaults to the Alpaca template from the paper. Pass `prompt_template="..."` (with `{instruction}` / `{input}`) or a callable such as `lambda ex: tokenizer.apply_chat_template(...)` for chat models.
 
 ## 🧪 Running Tests
 
